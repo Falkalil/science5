@@ -11,3 +11,7 @@
 ## العلوم – الصف السادس
 - **رابط الكتاب:** https://falkalil.github.io/science5/grade6/
 - **تطبيق أندرويد:** [grade6/download/science6.apk](grade6/download/science6.apk)
+
+## العلوم – الصف الرابع
+- **رابط الكتاب:** https://falkalil.github.io/science5/grade4/
+- **تطبيق أندرويد:** [grade4/download/science4.apk](grade4/download/science4.apk)
