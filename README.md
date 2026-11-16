@@ -7,3 +7,7 @@
 - **تطبيق أندرويد (APK):** [download/science5.apk](download/science5.apk)
 
 تصميم: أ. فهد الشيخي
+
+## العلوم – الصف السادس
+- **رابط الكتاب:** https://falkalil.github.io/science5/grade6/
+- **تطبيق أندرويد:** [grade6/download/science6.apk](grade6/download/science6.apk)
