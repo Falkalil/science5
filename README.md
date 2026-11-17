@@ -23,3 +23,7 @@
 ## العلوم – الصف الثاني
 - **رابط الكتاب:** https://falkalil.github.io/science5/grade2/
 - **تطبيق أندرويد:** [grade2/download/science2.apk](grade2/download/science2.apk)
+
+## العلوم – الصف الأول
+- **رابط الكتاب:** https://falkalil.github.io/science5/grade1/
+- **تطبيق أندرويد:** [grade1/download/science1.apk](grade1/download/science1.apk)
