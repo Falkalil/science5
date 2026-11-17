@@ -15,3 +15,7 @@
 ## العلوم – الصف الرابع
 - **رابط الكتاب:** https://falkalil.github.io/science5/grade4/
 - **تطبيق أندرويد:** [grade4/download/science4.apk](grade4/download/science4.apk)
+
+## العلوم – الصف الثالث
+- **رابط الكتاب:** https://falkalil.github.io/science5/grade3/
+- **تطبيق أندرويد:** [grade3/download/science3.apk](grade3/download/science3.apk)
