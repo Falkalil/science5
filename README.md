@@ -19,3 +19,7 @@
 ## العلوم – الصف الثالث
 - **رابط الكتاب:** https://falkalil.github.io/science5/grade3/
 - **تطبيق أندرويد:** [grade3/download/science3.apk](grade3/download/science3.apk)
+
+## العلوم – الصف الثاني
+- **رابط الكتاب:** https://falkalil.github.io/science5/grade2/
+- **تطبيق أندرويد:** [grade2/download/science2.apk](grade2/download/science2.apk)
