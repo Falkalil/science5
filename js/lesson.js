@@ -1,9 +1,46 @@
+import { mountAssistant } from './assistant.js';
+import { ASSIST } from './assist.js';
+import { LABS } from './vlab.js';
 // واجهة الدرس التفاعلي: التهيئة، الأهداف، المفاهيم، الشرح، التقويم
 const AR = s => String(s).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 const CSS = `
+#lesson .lh .stars{background:#ffcf3a;color:#5a3a00;border-radius:20px;padding:4px 12px;font-weight:800;font-size:16px;white-space:nowrap}
+#lesson .lh .stars.pop{animation:spop .6s}@keyframes spop{50%{transform:scale(1.35)}}
+#lesson .lh button.pm{font-size:15px;padding:0 10px;white-space:nowrap}
+#lesson .lw{position:relative}
+#lesson .starFly{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:#fff;border:2px solid #ffcf3a;border-radius:20px;padding:6px 16px;font-weight:800;color:#7a5200;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.2);animation:sfly 1.8s forwards;pointer-events:none;white-space:nowrap}
+@keyframes sfly{0%{opacity:0;transform:translate(-50%,20px)}15%{opacity:1;transform:translate(-50%,0)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-30px)}}
+#lesson.present .lw{width:100%;max-width:none}
+#lesson.present .lb{zoom:1.28}
+#lesson.present .lh .tt b{font-size:24px}
+#lesson .ptools{display:none;position:absolute;left:14px;bottom:76px;z-index:15;flex-direction:column;gap:8px}
+#lesson.present .ptools{display:flex}
+#lesson .ptools>button{width:58px;height:58px;border-radius:50%;border:0;background:#1f6f50;color:#fff;font-size:24px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#lesson .ptools>button small{display:block;font-size:10px;font-weight:800;margin-top:-4px}
+#lesson .pop{position:absolute;left:84px;bottom:76px;z-index:16;background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:12px;min-width:240px;display:none}
+#lesson .pop.show{display:block}#lesson .pop h4{margin:0 0 8px;color:#1f6f50}
+#lesson .pop .row{display:flex;gap:6px;flex-wrap:wrap}#lesson .pop .row button{flex:1;border:0;border-radius:10px;padding:10px;font:inherit;font-weight:800;background:#eef6f2;color:#1f5f45}
+#lesson .pop textarea,#lesson .pop input{width:100%;font:inherit;border:1px solid #d9c9a8;border-radius:10px;padding:6px;margin:4px 0;box-sizing:border-box}
+#lesson .pickov{position:absolute;inset:0;z-index:30;background:rgba(10,30,22,.85);display:none;align-items:center;justify-content:center;flex-direction:column;color:#fff;text-align:center}
+#lesson .pickov.show{display:flex}#lesson .pickov .v{font-size:min(28vw,220px);font-weight:800;line-height:1.1}#lesson .pickov .l{font-size:28px;font-weight:800;margin-top:10px}#lesson .pickov button{margin-top:20px;border:0;border-radius:14px;padding:12px 26px;font:inherit;font-size:20px;font-weight:800;background:#ffcf3a;color:#5a3a00}
+#lesson .tmr{position:absolute;top:70px;left:14px;z-index:15;background:#1f6f50;color:#fff;border-radius:16px;padding:8px 16px;font-size:34px;font-weight:800;display:none;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer}
+#lesson .tmr.show{display:block}#lesson .tmr.end{background:#d04a3a;animation:spop .6s infinite}#lesson .tmr small{display:block;font-size:12px;text-align:center}
+#lesson .tps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+#lesson .tps button{border:2px solid #e8a33a;background:#fff;border-radius:14px;padding:10px 6px;font:inherit;font-weight:800;color:#8a5a10}
+#lesson .tps button.on{background:#e8a33a;color:#fff}#lesson .tps button.ok{background:#fff3dc}
+#lesson .tps b{display:block;font-size:24px}
+#lesson .tpsT{font-size:30px;font-weight:800;text-align:center;color:#8a5a10;min-height:40px}
+#lesson .exit .lights{display:flex;gap:8px;margin-top:8px}
+#lesson .exit .lights button{flex:1;border:2px solid #ddd;border-radius:14px;background:#fff;padding:10px 4px;font:inherit;font-weight:800;font-size:14px}
+#lesson .exit .lights button i{display:block;font-style:normal;font-size:32px}
+#lesson .exit .lights button.on{border-color:#2f8f6a;background:#eefaf3}
+#lesson .exit .tally{display:none;gap:6px;margin-top:6px}#lesson.present .exit .tally{display:flex}
+#lesson .exit .tally button{flex:1;border:0;border-radius:10px;padding:8px;font:inherit;font-weight:800;background:#f3ead6}
+#lesson .badge{text-align:center;padding:14px;background:linear-gradient(135deg,#fff3c4,#ffe08a);border-radius:18px;border:2px solid #e8b830;margin:10px 0}
+#lesson .badge .m{font-size:64px;line-height:1}
 #lesson{position:fixed;inset:0;z-index:90;display:none;background:rgba(20,12,6,.55);backdrop-filter:blur(3px)}
 #lesson.open{display:flex;justify-content:center;align-items:stretch}
 #lesson .lw{background:#fffaf0;width:min(1060px,100%);display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.5);padding-top:env(safe-area-inset-top,0px);animation:lin .35s cubic-bezier(.2,.8,.2,1)}
@@ -135,7 +172,62 @@ export function initLessons(LESSONS, ctx) {
   const root = document.createElement('div'); root.id = 'lesson'; document.body.appendChild(root);
   const chip = document.createElement('button'); chip.id = 'lessonChip'; document.body.appendChild(chip);
   const back = document.createElement('button'); back.id = 'backLesson'; back.textContent = '↩ العودة إلى الدرس'; document.body.appendChild(back);
-  let L = null, tab = 0, sec = 0, prog = {};
+  let L = null, tab = 0, sec = 0, prog = {}, bot = null, botL = null;
+  /* ── التعلّم النشط: النجوم ── */
+  function award(n, why) {
+    if (!L || !L.active) return; prog.stars = (prog.stars || 0) + n; save();
+    const s = root.querySelector('.lh .stars'); if (s) { s.textContent = '⭐ ' + AR(prog.stars); s.classList.remove('pop'); void s.offsetWidth; s.classList.add('pop'); }
+    const f = document.createElement('div'); f.className = 'starFly'; f.textContent = '⭐ +' + AR(n) + (why ? ' — ' + why : ''); const lw = root.querySelector('.lw'); if (lw) lw.appendChild(f); setTimeout(() => f.remove(), 1900);
+  }
+  /* ── وضع العرض للمعلّم ── */
+  let present = false, tmrInt = 0, tmrLeft = 0;
+  let picked = []; try { picked = JSON.parse(localStorage.getItem('sci-picked') || '[]'); } catch (e) {}
+  const beep = () => { try { const a = new (window.AudioContext || window.webkitAudioContext)(); [0, .25, .5].forEach(t => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; o.connect(g); g.connect(a.destination); g.gain.setValueAtTime(.25, a.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + t + .22); o.start(a.currentTime + t); o.stop(a.currentTime + t + .23); }); } catch (e) {} };
+  const fmt = n => AR(Math.floor(n / 60)) + ':' + AR(String(n % 60).padStart(2, '0'));
+  function startTimer(sec, label) {
+    clearInterval(tmrInt); tmrLeft = sec; const t = root.querySelector('.tmr'); if (!t) return;
+    const paint = () => { t.innerHTML = fmt(tmrLeft) + (label ? `<small>${label}</small>` : ''); };
+    t.className = 'tmr show'; t.dataset.paused = ''; t.style.opacity = 1; paint();
+    tmrInt = setInterval(() => { if (t.dataset.paused) return; tmrLeft--; paint(); if (tmrLeft <= 0) { clearInterval(tmrInt); t.classList.add('end'); t.innerHTML = '⏰ انتهى الوقت'; beep(); } }, 1000);
+    t.onclick = () => { if (t.classList.contains('end')) { t.className = 'tmr'; tmrLeft = 0; return; } t.dataset.paused = t.dataset.paused ? '' : '1'; t.style.opacity = t.dataset.paused ? .6 : 1; };
+  }
+  function pickStudent() {
+    let names = []; try { names = (localStorage.getItem('sci-names') || '').split('\n').map(x => x.trim()).filter(Boolean); } catch (e) {}
+    const n = Math.max(2, +(localStorage.getItem('sci-classn') || 25));
+    const pool = names.length ? names : Array.from({ length: n }, (_, i) => String(i + 1));
+    let left = pool.filter(x => !picked.includes(x)); if (!left.length) { picked = []; left = pool.slice(); }
+    const choice = left[Math.floor(Math.random() * left.length)]; picked.push(choice); try { localStorage.setItem('sci-picked', JSON.stringify(picked)); } catch (e) {}
+    const big = root.querySelector('.pickov'); big.classList.add('show'); const v = big.querySelector('.v'), l = big.querySelector('.l'); l.textContent = '🎲 جارٍ الاختيار…'; big.querySelector('button').style.display = 'none';
+    v.style.fontSize = names.length ? 'min(14vw,110px)' : '';
+    let k = 0; const spin = setInterval(() => { v.textContent = AR(pool[Math.floor(Math.random() * pool.length)]); if (++k > 16) { clearInterval(spin); v.textContent = AR(choice); l.textContent = (names.length ? 'الطالبُ المختار' : 'رقمُ الطالبِ المختار') + ' (بقيَ ' + AR(pool.length - picked.length) + ')'; big.querySelector('button').style.display = ''; beep(); } }, 90);
+  }
+  function setPresent(on) {
+    present = on; root.classList.toggle('present', on);
+    try { if (on && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); if (!on && document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    const b = root.querySelector('[data-present]'); if (b) b.textContent = on ? '✕ إنهاء العرض' : '🖥️ وضع العرض';
+    if (!on) { root.querySelectorAll('.pop').forEach(p => p.classList.remove('show')); }
+  }
+  document.addEventListener('keydown', e => {
+    if (!root.classList.contains('open') || !present || /INPUT|TEXTAREA/.test((document.activeElement || {}).tagName)) return;
+    if (e.key === 'ArrowLeft' && tab < 4) { tab++; render(); } else if (e.key === 'ArrowRight' && tab > 0) { tab--; render(); }
+    else if (e.key === 'Escape') setPresent(false);
+  });
+  function presentHTML() {
+    if (!L.active) return '';
+    let cn = 25, nm = ''; try { cn = localStorage.getItem('sci-classn') || 25; nm = (localStorage.getItem('sci-names') || '').replace(/</g, ''); } catch (e) {}
+    return `<div class="ptools"><button data-pt="timer" title="مؤقّت">⏱<small>مؤقّت</small></button><button data-pt="pick" title="اختيارُ طالب">🎲<small>طالب</small></button><button data-pt="set" title="إعدادات الصف">👥<small>الصف</small></button></div>
+      <div class="pop" data-pp="timer"><h4>⏱ مؤقّتُ النشاط</h4><div class="row">${[1, 2, 3, 5].map(m => `<button data-tm="${m * 60}">${AR(m)} د</button>`).join('')}</div><div class="row" style="margin-top:6px"><button data-tm="30">٣٠ ث</button><button data-tm="0">إيقاف</button></div></div>
+      <div class="pop" data-pp="set"><h4>👥 طلابُ الصف</h4><label>عددُ الطلاب: <input type="number" min="2" max="60" id="pN" value="${cn}"></label><label>أو أسماءُ الطلاب (اسمٌ في كلِّ سطر):<textarea id="pNames" rows="5">${nm}</textarea></label><div class="row"><button id="pSave">حفظ</button><button id="pReset">جولةٌ جديدة</button></div><small style="color:#888">لا يتكرّرُ طالبٌ حتى يُختارَ الجميع.</small></div>
+      <div class="tmr"></div><div class="pickov"><div class="v"></div><div class="l"></div><button>تم ✓</button></div>`;
+  }
+  function wirePresent() {
+    if (!L.active) return;
+    root.querySelectorAll('[data-pt]').forEach(b => b.onclick = e => { e.stopPropagation(); const k = b.dataset.pt; if (k === 'pick') { root.querySelectorAll('.pop').forEach(p => p.classList.remove('show')); return pickStudent(); } root.querySelectorAll('.pop').forEach(p => p.classList.toggle('show', p.dataset.pp === k && !p.classList.contains('show'))); });
+    root.querySelectorAll('[data-tm]').forEach(b => b.onclick = () => { const v = +b.dataset.tm; root.querySelector('[data-pp=timer]').classList.remove('show'); if (!v) { clearInterval(tmrInt); tmrLeft = 0; root.querySelector('.tmr').className = 'tmr'; } else startTimer(v); });
+    const sv = root.querySelector('#pSave'); if (sv) sv.onclick = () => { try { localStorage.setItem('sci-classn', root.querySelector('#pN').value); localStorage.setItem('sci-names', root.querySelector('#pNames').value); localStorage.setItem('sci-picked', '[]'); } catch (e) {} picked = []; root.querySelector('[data-pp=set]').classList.remove('show'); };
+    const rs = root.querySelector('#pReset'); if (rs) rs.onclick = () => { picked = []; try { localStorage.setItem('sci-picked', '[]'); } catch (e) {} rs.textContent = '✓ تمت'; };
+    const big = root.querySelector('.pickov'); big.querySelector('button').onclick = () => big.classList.remove('show');
+  }
 
   /* ── قارئ الدرس (أصوات الجهاز العربية) ── */
   const synth = window.speechSynthesis;
@@ -215,24 +307,26 @@ export function initLessons(LESSONS, ctx) {
   const modelBtn = id => `<button class="mbtn" data-model="${id}">🧊 افتح المجسّم ثلاثي الأبعاد</button>`;
 
   function open(lesson, t) {
-    L = lesson; load(); tab = t ?? prog.tab ?? 0; root.classList.add('open'); back.style.display = 'none'; render();
+    L = lesson; if (L.active === undefined) L.active = true; if (L !== botL) sec = 0; load(); tab = t ?? prog.tab ?? 0; root.classList.add('open'); back.style.display = 'none'; render();
   }
   function close() { stopNar(); root.classList.remove('open'); prog.tab = tab; save(); }
   function render() {
     root.innerHTML = `<div class="lw">
-      <div class="lh"><div class="tt"><b>${L.title}</b><small>${L.unit} · ص ${AR(L.from)}–${AR(L.to)}</small></div><button data-x title="إغلاق">✕</button></div>
+      <div class="lh"><div class="tt"><b>${L.title}</b><small>${L.unit} · ص ${AR(L.from)}–${AR(L.to)}</small></div>${L.active ? `<span class="stars" title="نجومي">⭐ ${AR(prog.stars || 0)}</span><button class="pm" data-present title="وضع العرض على السبورة الذكية">${present ? '✕ إنهاء العرض' : '🖥️ وضع العرض'}</button>` : ''}<button data-x title="إغلاق">✕</button></div>
       <div class="tabs">${TABS.map(([i, t], k) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''} ${prog['v' + k] ? 'done' : ''}"><i>${i}</i>${AR(k + 1)}. ${t}</button>`).join('')}</div>
-      <div class="lb" id="lb"></div>${narHTML()}
+      <div class="lb" id="lb"></div>${narHTML()}${presentHTML()}
       <div class="lf">${tab > 0 ? `<button data-prev>→ ${TABS[tab - 1][1]}</button>` : ''}${tab < 4 ? `<button class="pri" data-next>التالي: ${TABS[tab + 1][1]} ←</button>` : `<button class="pri" data-x>إنهاء الدرس والعودة إلى الكتاب</button>`}</div></div>`;
     prog['v' + tab] = 1; prog.tab = tab; save();
     stopNar(); scriptFn = null;
     const lb = root.querySelector('#lb');
-    [rEngage, rObjectives, rVocab, rExplain, rQuiz][tab](lb); wireNar();
+    [rEngage, rObjectives, rVocab, rExplain, rQuiz][tab](lb); wireNar(); wirePresent(); if (tmrLeft > 0) startTimer(tmrLeft);
     lb.scrollTop = 0;
+    { const lw = root.querySelector('.lw'); if (botL !== L) { bot = mountAssistant(lw, L, () => tab === 3 ? sec : -1, L.assist || ASSIST[L.id]); botL = L; } else bot.attach(lw); if (tab === 3) bot.setSection(sec); }
   }
   root.addEventListener('click', e => {
     const t = e.target.closest('button,[data-go],[data-model]'); if (!t) return;
-    if (t.dataset.x !== undefined) return close();
+    if (t.dataset.present !== undefined) return setPresent(!present);
+    if (t.dataset.x !== undefined) { setPresent(false); clearInterval(tmrInt); tmrLeft = 0; return close(); }
     if (t.dataset.tab !== undefined) { tab = +t.dataset.tab; return render(); }
     if (t.dataset.next !== undefined) { tab++; return render(); }
     if (t.dataset.prev !== undefined) { tab--; return render(); }
@@ -255,7 +349,7 @@ export function initLessons(LESSONS, ctx) {
   function gameOrder(w, G) {
     w.innerHTML = `<div class="card blue order"><span class="tag">🔢 ${G.title}</span><div class="og"></div><div class="fb"></div><button class="abtn sec">🔄 أعدِ المحاولة</button></div>`;
     const go = () => { let k = 0; const o = w.querySelector('.og'), fb = w.querySelector('.fb'); fb.textContent = ''; o.innerHTML = shuffle(G.steps.map((s, i) => [s, i])).map(([s, i]) => `<button data-i="${i}">${s}</button>`).join('');
-      o.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.classList.contains('ok')) return; if (+b.dataset.i === k) { b.classList.add('ok'); b.insertAdjacentHTML('afterbegin', `<span class="k">${AR(k + 1)}</span>`); k++; if (k === G.steps.length) { fb.className = 'fb ok'; fb.textContent = '🌟 أحسنت! الترتيبُ صحيح.'; } } else { b.classList.add('bad'); setTimeout(() => b.classList.remove('bad'), 400); } }); };
+      o.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.classList.contains('ok')) return; if (+b.dataset.i === k) { b.classList.add('ok'); b.insertAdjacentHTML('afterbegin', `<span class="k">${AR(k + 1)}</span>`); k++; if (k === G.steps.length) { award(2, 'رتّبتَ الخطوات'); fb.className = 'fb ok'; fb.textContent = '🌟 أحسنت! الترتيبُ صحيح.'; } } else { b.classList.add('bad'); setTimeout(() => b.classList.remove('bad'), 400); } }); };
     w.querySelector('.abtn').onclick = go; go();
   }
   // لعبة التصنيف: cats + items [[label, catIndex]]
@@ -267,7 +361,7 @@ export function initLessons(LESSONS, ctx) {
     const go = () => { let sel = null, done = 0; const it = w.querySelector('.sortItems'), fb = w.querySelector('.fb'); fb.textContent = ''; w.querySelectorAll('.sortCats .in').forEach(x => x.innerHTML = '');
       it.innerHTML = shuffle(G.items.map((x, i) => [x, i])).map(([[t], i]) => `<button class="chip" data-i="${i}">${t}</button>`).join('');
       it.querySelectorAll('button').forEach(b => b.onclick = () => { it.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); sel = b; });
-      w.querySelectorAll('.sortCats [data-c]').forEach(c => c.onclick = () => { if (!sel) return; const ok = G.items[+sel.dataset.i][1] === +c.dataset.c; if (ok) { sel.classList.remove('on'); sel.classList.add('ok'); c.querySelector('.in').appendChild(sel); sel.onclick = null; sel = null; if (++done === G.items.length) { fb.className = 'fb ok'; fb.textContent = '🌟 ممتاز! صنّفتَ جميعَ البطاقاتِ تصنيفًا صحيحًا.'; } } else { sel.classList.add('no'); const b = sel; setTimeout(() => b.classList.remove('no'), 500); } }); };
+      w.querySelectorAll('.sortCats [data-c]').forEach(c => c.onclick = () => { if (!sel) return; const ok = G.items[+sel.dataset.i][1] === +c.dataset.c; if (ok) { sel.classList.remove('on'); sel.classList.add('ok'); c.querySelector('.in').appendChild(sel); sel.onclick = null; sel = null; if (++done === G.items.length) { award(2, 'صنّفتَ كلَّ البطاقات'); fb.className = 'fb ok'; fb.textContent = '🌟 ممتاز! صنّفتَ جميعَ البطاقاتِ تصنيفًا صحيحًا.'; } } else { sel.classList.add('no'); const b = sel; setTimeout(() => b.classList.remove('no'), 500); } }); };
     w.querySelector('.abtn').onclick = go; go();
   }
 
@@ -302,7 +396,12 @@ export function initLessons(LESSONS, ctx) {
       <table><tr><th>الساق</th><th>عددُ الأوراق</th><th>مسافةُ انتقالِ الماء (سم)</th></tr>${['الأولى', 'الثانية', 'الثالثة'].map((n, i) => `<tr><td>${n}</td><td>${['لا أوراق', 'ورقة واحدة', 'كلّ الأوراق'][i]}</td><td id="m${i}">—</td></tr>`).join('')}</table>
       <div style="font-weight:800;margin-top:10px">٤) أستخلصُ النتائج:</div>
       ${X.concl.map((c, i) => `<div class="qi"><div class="qq">${c.q}</div><button class="abtn sec" data-rv="c${i}">اعرضِ الإجابة</button><div class="reveal" id="c${i}">${c.a}</div></div>`).join('')}
-      <p style="color:#6a5a44">💡 ${X.more}</p></div>` : genericExplore(X)}`;
+      <p style="color:#6a5a44">💡 ${X.more}</p></div>` : X.lab && LABS[X.lab] ? `<div class="card blue"><span class="tag">🧪 المختبرُ الافتراضيّ — أستكشف</span> ${pageBtn(X.page, 'النشاطُ في الكتاب ص ' + AR(X.page))}<h3>${X.title}</h3><p>${X.intro}</p><div id="vlab"></div><p style="color:#6a5a44">💡 ${X.more}</p></div>` : genericExplore(X)}`;
+    if (L.active && E.warmups) { const wc = el.querySelector('.card.orange'); if (wc) wc.outerHTML = `<div class="card orange"><span class="tag o">💬 فكّرْ – زاوِجْ – شارِكْ</span>${E.warmups.map(w => `<p style="font-weight:700">• ${w.q}</p>`).join('')}
+      <div class="tps"><button data-tps="0"><b>🤔</b>١. فكّرْ وحدَك<br><small>٣٠ ثانية</small></button><button data-tps="1"><b>👫</b>٢. ناقشْ زميلَك<br><small>دقيقة</small></button><button data-tps="2"><b>🙋</b>٣. شاركِ الصفّ<br><small>دقيقة</small></button></div><div class="tpsT"></div></div>`;
+      let ti = 0; const T = el.querySelector('.tpsT');
+      el.querySelectorAll('[data-tps]').forEach(b => b.onclick = () => { const k = +b.dataset.tps, secs = [30, 60, 60][k]; el.querySelectorAll('[data-tps]').forEach((x, i) => { x.classList.toggle('on', i === k); if (i < k) x.classList.add('ok'); }); clearInterval(ti); let left = secs; T.textContent = fmt(left); ti = setInterval(() => { if (!document.body.contains(T)) return clearInterval(ti); left--; T.textContent = left > 0 ? fmt(left) : (k < 2 ? '⏰ انتقلْ إلى الخطوةِ التالية' : '🌟 أحسنتم!'); if (left <= 0) { clearInterval(ti); beep(); if (k === 2) award(1, 'شاركتَ في النقاش'); } }, 1000); }); }
+    if (X.lab && LABS[X.lab]) LABS[X.lab](el.querySelector('#vlab'), { award, AR });
     const qb = el.querySelector('.qbox'), lab = el.querySelector('.lab');
     if (NARRATION) setScript(() => [{ t: 'أنظرُ وأتساءلُ. ' + E.look + ' ' + E.question, el: qb }, ...(el.querySelector('#eAns').classList.contains('show') ? [{ t: E.reveal, el: el.querySelector('#eAns') }] : []), { t: 'أسئلةٌ للنقاش. ' + E.warmups.map(w => w.q).join(' '), el: el.querySelector('.card.orange') }, { t: 'أستكشفُ. ' + X.title + ' ' + X.intro + ' أكوّنُ فرضيّةً. ' + X.steps.join(' '), el: lab }], 'استمع إلى التهيئة');
     el.querySelectorAll('#eChips .chip').forEach(b => b.onclick = () => b.classList.toggle('on'));
@@ -361,7 +460,7 @@ export function initLessons(LESSONS, ctx) {
       const pool = shuffle(L.vocab).slice(0, 4); const defs = shuffle(pool); let sel = null, done = 0;
       mg.innerHTML = `<div class="match"><div>${pool.map((v, i) => `<button data-w="${L.vocab.indexOf(v)}" style="display:block;width:100%;margin:6px 0;font-weight:800">${v.w}</button>`).join('')}</div><div>${defs.map(v => `<button data-d="${L.vocab.indexOf(v)}" style="display:block;width:100%;margin:6px 0">${v.d}</button>`).join('')}</div></div><div class="fb" id="mgFb"></div>`;
       mg.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { if (b.classList.contains('ok')) return; mg.querySelectorAll('[data-w]').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); sel = b; });
-      mg.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (!sel || b.classList.contains('ok')) return; if (sel.dataset.w === b.dataset.d) { sel.classList.remove('sel'); sel.classList.add('ok'); b.classList.add('ok'); sel = null; if (++done === 4) { const f = mg.querySelector('#mgFb'); f.className = 'fb ok'; f.textContent = '🌟 ممتاز! طابقتَ جميعَ المصطلحات.'; } } else { b.classList.add('bad'); setTimeout(() => b.classList.remove('bad'), 400); } });
+      mg.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (!sel || b.classList.contains('ok')) return; if (sel.dataset.w === b.dataset.d) { sel.classList.remove('sel'); sel.classList.add('ok'); b.classList.add('ok'); sel = null; if (++done === 4) { award(1, 'طابقتَ المصطلحات'); const f = mg.querySelector('#mgFb'); f.className = 'fb ok'; f.textContent = '🌟 ممتاز! طابقتَ جميعَ المصطلحات.'; } } else { b.classList.add('bad'); setTimeout(() => b.classList.remove('bad'), 400); } });
     }
     el.querySelector('#mgNew').onclick = round; round();
   }
@@ -376,7 +475,7 @@ export function initLessons(LESSONS, ctx) {
       <div id="widget"></div>
       <div class="card red"><span class="tag r">✔ أختبرُ نفسي</span>${S.check.map((c, i) => `<div class="qi"><div class="qq">${c.q}</div><button class="abtn sec" data-rv="k${i}">اعرضِ الإجابة</button><div class="reveal" id="k${i}">${c.a}</div></div>`).join('')}</div>
       <div style="display:flex;gap:8px">${sec > 0 ? `<button class="abtn sec" data-s="${sec - 1}">→ الجزءُ السابق</button>` : ''}${sec < L.sections.length - 1 ? `<button class="abtn" data-s="${sec + 1}">الجزءُ التالي ←</button>` : `<button class="abtn" data-next>انتقلْ إلى التقويم ←</button>`}</div>`;
-    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sec = +b.dataset.s; rExplain(el); el.scrollTop = 0; });
+    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sec = +b.dataset.s; rExplain(el); el.scrollTop = 0; if (bot && botL === L) bot.setSection(sec); });
     el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => el.querySelector('#' + b.dataset.rv).classList.toggle('show'));
     const clipEls = el.querySelectorAll('.clip');
     setScript(() => S.clips.map((c, i) => ({ t: c.t, el: clipEls[i], k: `${L.id}-${S.id}-${i}` })), 'استمع إلى شرح: ' + S.title.replace('؟', ''));
@@ -443,9 +542,9 @@ export function initLessons(LESSONS, ctx) {
       ${ORD ? `<h3>رابعًا: ${ORD.title}</h3><div class="order" id="qO"></div><div class="fb" id="qOfb"></div>` : ''}
       <h3>${ORD ? 'خامسًا' : 'رابعًا'}: أفكّرُ، وأتحدّثُ، وأكتبُ</h3><div id="qX"></div>
       <div class="card green" id="qEnd"></div>
-      <div class="card"><span class="tag g">🖼 ملخّصٌ مصوّر</span>${L.summary.map(s => `<p>• ${s.t}</p>`).join('')}${pageBtn(47, 'مراجعةُ الدرسِ ص ٤٧')}</div>`;
+      <div class="card"><span class="tag g">🖼 ملخّصٌ مصوّر</span>${L.summary.map(s => `<p>• ${s.t}</p>`).join('')}${pageBtn(L.to, 'مراجعةُ الدرسِ ص ' + AR(L.to))}</div>${exitHTML()}`;
     const upd = () => { el.querySelector('#sc').textContent = AR(score) + ' / ' + AR(total); el.querySelector('#scb').style.width = (score / total * 100) + '%'; const end = el.querySelector('#qEnd'); end.innerHTML = answered >= total ? `<b style="background:none;font-size:20px">${score >= total * .9 ? '🌟 ممتاز!' : score >= total * .7 ? '👍 أحسنت!' : '💪 راجعِ الدرسَ وحاولْ مرةً أخرى'}</b><p>أجبتَ إجابةً صحيحةً عن ${AR(score)} من ${AR(total)}.</p>` : `<p style="margin:0">أجبتَ عن ${AR(answered)} من ${AR(total)} سؤالًا.</p>`; if (answered >= total) { prog.best = Math.max(prog.best || 0, score); save(); } };
-    const mark = ok => { answered++; if (ok) score++; upd(); };
+    const mark = ok => { answered++; if (ok) { score++; award(1); } upd(); };
     const bookTag = q => q.book ? '<span class="bk">من الكتاب</span>' : '';
     el.querySelector('#qM').innerHTML = Q.mcq.map((q, i) => `<div class="qi" data-m="${i}"><div class="qq">${AR(i + 1)}. ${bookTag(q)}${q.q}${spk(q.q + ' ' + q.o.map((o, k) => 'أ ب ج د'.split(' ')[k] + '، ' + o + '.').join(' '))}</div><div class="opts">${q.o.map((o, k) => `<button data-k="${k}">${'أبجد'[k]}) ${o}</button>`).join('')}</div><div class="fb"></div></div>`).join('');
     el.querySelectorAll('[data-m]').forEach(d => { const q = Q.mcq[+d.dataset.m]; d.querySelectorAll('button').forEach(b => b.onclick = () => { if (d.dataset.done) return; d.dataset.done = 1; const ok = +b.dataset.k === q.a; b.classList.add(ok ? 'ok' : 'no'); d.querySelectorAll('button')[q.a].classList.add('ok'); const fb = d.querySelector('.fb'); fb.className = 'fb ' + (ok ? 'ok' : 'no'); fb.innerHTML = (ok ? '✓ إجابةٌ صحيحة' : '✗ الإجابةُ الصحيحة: ' + q.o[q.a]) + ` <button class="pbtn" data-go="${q.p}">ص ${AR(q.p)}</button>`; mark(ok); }); });
@@ -464,7 +563,36 @@ export function initLessons(LESSONS, ctx) {
     el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => el.querySelector('#' + b.dataset.rv).classList.toggle('show'));
     el.querySelector('#qReset').onclick = () => rQuiz(el);
     setScript(() => [...el.querySelectorAll('#qM .qi')].map((d, i) => ({ t: 'السؤالُ ' + (i + 1) + '. ' + Q.mcq[i].q + ' ' + Q.mcq[i].o.join('، أو ') + '؟', el: d })), 'استمع إلى أسئلة الاختيار');
-    upd();
+    upd(); wireExit(el);
+  }
+  /* ── بطاقة الخروج ── */
+  function exitHTML() {
+    const EXQ = exitQs(); if (!L.active || !EXQ.length) return '';
+    return `<div class="card exit" id="exitT"><span class="tag">🎫 بطاقةُ الخروج</span><p style="margin:4px 0">أجبْ قبلَ أن تغادرَ الدرس:</p>
+      ${EXQ.map((q, i) => `<div class="qi" data-x2="${i}"><div class="qq">${AR(i + 1)}. ${q.q}</div><div class="opts">${q.o.map((o, k) => `<button data-k="${k}">${o}</button>`).join('')}</div><div class="fb"></div></div>`).join('')}
+      <div style="font-weight:800;margin-top:8px">كيف أشعرُ بعدَ الدرس؟</div>
+      <div class="lights">${[['🟢', 'فهمتُ الدرس'], ['🟡', 'فهمتُ أغلبَه'], ['🔴', 'أحتاجُ مساعدة']].map(([i, t], k) => `<button data-lt="${k}" class="${prog.light === k ? 'on' : ''}"><i>${i}</i>${t}</button>`).join('')}</div>
+      <div class="tally">${['🟢', '🟡', '🔴'].map((i, k) => `<button data-ty="${k}" title="عُدَّ أيديَ الطلاب">${i} <span>٠</span></button>`).join('')}<button data-ty="r" title="تصفير">↺</button></div>
+      <div id="exitDone"></div></div>`;
+  }
+  function exitQs() {
+    if (L.exit) return L.exit;
+    if (L._exit) return L._exit;
+    const V = L.vocab.filter(v => v.d && v.w); const out = [];
+    const st = s => String(s).replace(/<[^>]+>/g, '');
+    if (V.length >= 3) for (const v of shuffle(V).slice(0, 3)) { const o = shuffle([v.w, ...shuffle(V.filter(x => x !== v)).slice(0, 2).map(x => x.w)]); out.push({ q: 'ما المصطلحُ الذي يعني: «' + st(v.d) + '»؟', o, a: o.indexOf(v.w), why: 'الإجابةُ: ' + v.w + ' (ص ' + AR(v.p) + ').' }); }
+    const Q = L.quiz || {};
+    for (const m of shuffle(Q.mcq || [])) { if (out.length >= 3) break; out.push({ q: st(m.q), o: m.o.map(st), a: m.a, why: 'راجعْ ص ' + AR(m.p) + '.' }); }
+    for (const t of shuffle(Q.tf || [])) { if (out.length >= 3) break; out.push({ q: 'صوابٌ أم خطأ: ' + st(t.q), o: ['صواب', 'خطأ'], a: t.a ? 0 : 1, why: (t.fix ? st(t.fix) + ' ' : '') + '(ص ' + AR(t.p) + ')' }); }
+    return (L._exit = out.slice(0, 3));
+  }
+  function wireExit(el) {
+    const ex = el.querySelector('#exitT'); if (!ex) return; let got = 0;
+    const done = () => { if (got < exitQs().length || prog.light === undefined) return; const d = ex.querySelector('#exitDone'); const tot = prog.stars || 0;
+      d.innerHTML = `<div class="badge"><div class="m">${tot >= 25 ? '🏅' : tot >= 12 ? '🥈' : '🎖️'}</div><b style="background:none;font-size:20px">${tot >= 25 ? 'وسامُ العالِمِ الصغير' : tot >= 12 ? 'وسامُ المستكشفِ النشيط' : 'وسامُ المشاركة'}</b><p style="margin:4px 0">جمعتَ ${AR(tot)} نجمةً في هذا الدرس${prog.light === 2 ? ' — اطلبْ من معلّمِك أن يساعدَك في ما لم تفهمْه 🤝' : ''}.</p></div>`; };
+    ex.querySelectorAll('[data-x2]').forEach(d => { const q = exitQs()[+d.dataset.x2]; d.querySelectorAll('button').forEach(b => b.onclick = () => { if (d.dataset.done) return; d.dataset.done = 1; const r = +b.dataset.k === q.a; b.classList.add(r ? 'ok' : 'no'); d.querySelectorAll('button')[q.a].classList.add('ok'); const fb = d.querySelector('.fb'); fb.className = 'fb ' + (r ? 'ok' : 'no'); fb.textContent = r ? '✓ أحسنت' : '✗ ' + (q.why || 'الإجابةُ الصحيحة: ' + q.o[q.a]); got++; if (r) award(1); done(); }); });
+    ex.querySelectorAll('[data-lt]').forEach(b => b.onclick = () => { prog.light = +b.dataset.lt; save(); ex.querySelectorAll('[data-lt]').forEach(x => x.classList.toggle('on', x === b)); done(); });
+    const cnt = [0, 0, 0]; ex.querySelectorAll('[data-ty]').forEach(b => b.onclick = () => { if (b.dataset.ty === 'r') cnt.fill(0); else cnt[+b.dataset.ty]++; ex.querySelectorAll('[data-ty] span').forEach((sp, i) => sp.textContent = AR(cnt[i])); });
   }
 
   function update(cur) {
