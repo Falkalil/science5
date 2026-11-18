@@ -1,3 +1,4 @@
+import { mountAssistant } from './assistant.js';
 // واجهة الدرس التفاعلي: التهيئة، الأهداف، المفاهيم، الشرح، التقويم
 const AR = s => String(s).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -6,7 +7,7 @@ const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { c
 const CSS = `
 #lesson{position:fixed;inset:0;z-index:90;display:none;background:rgba(20,12,6,.55);backdrop-filter:blur(3px)}
 #lesson.open{display:flex;justify-content:center;align-items:stretch}
-#lesson .lw{background:#fffaf0;width:min(1060px,100%);display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.5);padding-top:env(safe-area-inset-top,0px);animation:lin .35s cubic-bezier(.2,.8,.2,1)}
+#lesson .lw{position:relative;background:#fffaf0;width:min(1060px,100%);display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.5);padding-top:env(safe-area-inset-top,0px);animation:lin .35s cubic-bezier(.2,.8,.2,1)}
 @keyframes lin{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
 #lesson .lh{display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(135deg,#2f8f6a,#1f6f50);color:#fff}
 #lesson .lh .tt{flex:1;min-width:0}#lesson .lh .tt b{display:block;font-size:18px}#lesson .lh .tt small{opacity:.85;font-size:12px}
@@ -135,7 +136,7 @@ export function initLessons(LESSONS, ctx) {
   const root = document.createElement('div'); root.id = 'lesson'; document.body.appendChild(root);
   const chip = document.createElement('button'); chip.id = 'lessonChip'; document.body.appendChild(chip);
   const back = document.createElement('button'); back.id = 'backLesson'; back.textContent = '↩ العودة إلى الدرس'; document.body.appendChild(back);
-  let L = null, tab = 0, sec = 0, prog = {};
+  let L = null, tab = 0, sec = 0, prog = {}, bot = null, botL = null;
 
   /* ── قارئ الدرس (أصوات الجهاز العربية) ── */
   const synth = window.speechSynthesis;
@@ -229,6 +230,7 @@ export function initLessons(LESSONS, ctx) {
     const lb = root.querySelector('#lb');
     [rEngage, rObjectives, rVocab, rExplain, rQuiz][tab](lb); wireNar();
     lb.scrollTop = 0;
+    if (L.assist) { const lw = root.querySelector('.lw'); if (botL !== L) { bot = mountAssistant(lw, L, () => tab === 3 ? sec : -1); botL = L; } else bot.attach(lw); if (tab === 3) bot.setSection(sec); }
   }
   root.addEventListener('click', e => {
     const t = e.target.closest('button,[data-go],[data-model]'); if (!t) return;
@@ -376,7 +378,7 @@ export function initLessons(LESSONS, ctx) {
       <div id="widget"></div>
       <div class="card red"><span class="tag r">✔ أختبرُ نفسي</span>${S.check.map((c, i) => `<div class="qi"><div class="qq">${c.q}</div><button class="abtn sec" data-rv="k${i}">اعرضِ الإجابة</button><div class="reveal" id="k${i}">${c.a}</div></div>`).join('')}</div>
       <div style="display:flex;gap:8px">${sec > 0 ? `<button class="abtn sec" data-s="${sec - 1}">→ الجزءُ السابق</button>` : ''}${sec < L.sections.length - 1 ? `<button class="abtn" data-s="${sec + 1}">الجزءُ التالي ←</button>` : `<button class="abtn" data-next>انتقلْ إلى التقويم ←</button>`}</div>`;
-    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sec = +b.dataset.s; rExplain(el); el.scrollTop = 0; });
+    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sec = +b.dataset.s; rExplain(el); el.scrollTop = 0; if (bot && botL === L) bot.setSection(sec); });
     el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => el.querySelector('#' + b.dataset.rv).classList.toggle('show'));
     const clipEls = el.querySelectorAll('.clip');
     setScript(() => S.clips.map((c, i) => ({ t: c.t, el: clipEls[i], k: `${L.id}-${S.id}-${i}` })), 'استمع إلى شرح: ' + S.title.replace('؟', ''));
@@ -443,7 +445,7 @@ export function initLessons(LESSONS, ctx) {
       ${ORD ? `<h3>رابعًا: ${ORD.title}</h3><div class="order" id="qO"></div><div class="fb" id="qOfb"></div>` : ''}
       <h3>${ORD ? 'خامسًا' : 'رابعًا'}: أفكّرُ، وأتحدّثُ، وأكتبُ</h3><div id="qX"></div>
       <div class="card green" id="qEnd"></div>
-      <div class="card"><span class="tag g">🖼 ملخّصٌ مصوّر</span>${L.summary.map(s => `<p>• ${s.t}</p>`).join('')}${pageBtn(47, 'مراجعةُ الدرسِ ص ٤٧')}</div>`;
+      <div class="card"><span class="tag g">🖼 ملخّصٌ مصوّر</span>${L.summary.map(s => `<p>• ${s.t}</p>`).join('')}${pageBtn(L.to, 'مراجعةُ الدرسِ ص ' + AR(L.to))}</div>`;
     const upd = () => { el.querySelector('#sc').textContent = AR(score) + ' / ' + AR(total); el.querySelector('#scb').style.width = (score / total * 100) + '%'; const end = el.querySelector('#qEnd'); end.innerHTML = answered >= total ? `<b style="background:none;font-size:20px">${score >= total * .9 ? '🌟 ممتاز!' : score >= total * .7 ? '👍 أحسنت!' : '💪 راجعِ الدرسَ وحاولْ مرةً أخرى'}</b><p>أجبتَ إجابةً صحيحةً عن ${AR(score)} من ${AR(total)}.</p>` : `<p style="margin:0">أجبتَ عن ${AR(answered)} من ${AR(total)} سؤالًا.</p>`; if (answered >= total) { prog.best = Math.max(prog.best || 0, score); save(); } };
     const mark = ok => { answered++; if (ok) score++; upd(); };
     const bookTag = q => q.book ? '<span class="bk">من الكتاب</span>' : '';
