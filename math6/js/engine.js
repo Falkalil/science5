@@ -40,14 +40,14 @@ export function judgeOne(A, raw, P = {}) {
 export function ansText(A) {
   const t = A.type; if (t === 'num') return fmt(A.v) + (A.unit ? ' ' + A.unit : ''); if (t === 'list') return A.v.map(v => fmt(v)).join('، ') + (A.unit ? ' ' + A.unit : ''); if (t === 'times') return A.v.map(fmtTime).join('، ');
   if (t === 'mcq' || t === 'choice') return A.opts[A.v]; if (t === 'frac') { const f = parseFrac(A.v); return f.mixed ? mixed(f.w, f.n, f.d) : f.whole ? AR(A.v) : fr(f.n, f.d); }
-  if (t === 'expr') return R(A.v); if (t === 'pf') return R(A.show || primeFactors(A.v).join('×')); if (t === 'text') return [].concat(A.v)[0]; if (t === 'fn') return A.show || ''; if (t === 'fields') return A.fields.map(f => `${f.label}: ${ansText(f)}`).join('، '); return '';
+  if (t === 'expr') return R(A.v); if (t === 'pf') return R(A.show || primeFactors(A.v).join('×')); if (t === 'text') return [].concat(A.v)[0]; if (t === 'fn' || t === 'task') return A.show || ''; if (t === 'fields') return A.fields.map(f => `${f.label}: ${ansText(f)}`).join('، '); return '';
 }
 const PH = { num: 'الإجابة', list: 'مثل: ٢٩، ٣٥، ٤١', times: 'مثل: ١٠:١٠، ١٠:٤٠', frac: 'مثل: ٣/٤ أو ١ ١/٢', expr: 'مثل: ن + ٣', pf: 'مثل: ٢ × ٢ × ٣', text: 'الإجابة' };
 const W = { num: '150px', list: '260px', times: '260px', frac: '150px', expr: '200px', pf: '230px', text: '200px' };
 
 /* ═════════ بطاقةُ المسألة ═════════ */
 export function problemCard(host, P, opt = {}) {
-  const A = P.ans, canScaffold = P.ask && P.op && !['mcq', 'open', 'choice', 'fields'].includes(A.type);
+  const A = P.ans, canScaffold = P.ask && P.op && !['mcq', 'open', 'choice', 'fields', 'task'].includes(A.type);
   const scaffold = canScaffold && (opt.scaffold ?? store.get('scaffold', true));
   const S = { P, tries: 0, wrongLast: null, done: false };
   host.innerHTML = `<div class="pc"><div class="ph">${P.tag ? `<span class="ptag">${P.tag}</span>` : ''}${P.title ? `<b>${P.title}</b>` : ''}${pg(P.p)}</div><div class="ptext">${P.text}</div>
@@ -72,6 +72,7 @@ export function problemCard(host, P, opt = {}) {
   function stepH() {
     let inner;
     if (A.type === 'mcq' || A.type === 'choice') inner = `<div class="opts ${A.type === 'choice' ? 'inl' : ''}">${A.opts.map((o, i) => `<button data-i="${i}">${A.type === 'mcq' ? 'أبجد'[i] + ') ' : ''}${o}</button>`).join('')}</div>`;
+    else if (A.type === 'task') inner = '<div class="tmount"></div>';
     else if (A.type === 'open') inner = `<textarea placeholder="أكتبُ إجابتي…"></textarea><button class="btn s sm" data-a="model">قارنْ بالإجابةِ النموذجيّة</button>`;
     else if (A.type === 'fields') inner = A.fields.map((f, i) => `<div class="row fld"><b>${f.label}</b>${inputFor(f, i)}</div>`).join('') + '<div class="row"><button class="btn sm" data-a="chk">تحقّق ✓</button></div>';
     else inner = `${P.col ? '<div class="colw"></div>' : ''}<div class="row">${inputFor(A)}<button class="btn sm" data-a="chk">تحقّق ✓</button></div>`;
@@ -79,6 +80,7 @@ export function problemCard(host, P, opt = {}) {
     const d = add('h', `${scaffold ? head('h') : ''}${inner}<div class="fb"></div>`);
     const fb = $('.fb', d);
     if (A.type === 'mcq' || A.type === 'choice') $$('.opts button', d).forEach(b => b.onclick = () => { if (S.done) return; const ok = +b.dataset.i === A.v; b.classList.add(ok ? 'ok' : 'no'); S.tries++; if (ok) finish(d, S.tries === 1); else { S.wrongLast = { raw: b.textContent, msg: (P.mistakes || []).find(([w]) => w === +b.dataset.i)?.[1] }; fb.innerHTML = '✗ ' + (S.wrongLast.msg || 'حاولْ مرّةً أخرى، واستعملِ التلميح.'); } });
+    else if (A.type === 'task') A.run($('.tmount', d), (ok, msg) => { if (S.done) return; S.tries++; if (ok) finish(d, S.tries === 1); else { S.wrongLast = { raw: '', msg }; fb.innerHTML = '✗ ' + (msg || 'راجعْ عملَك.'); } });
     else if (A.type === 'open') $('[data-a="model"]', d).onclick = () => { fb.innerHTML = '📝 ' + A.v; if (!S.done) { S.done = true; markSolved(P); star(1, 'للتفكيرِ والكتابة'); opt.onDone && opt.onDone(true); } };
     else {
       const inps = $$('input.ans', d);
