@@ -20,7 +20,7 @@ let mode = 'single', cur = 2, onPage = () => {};
 const NOTE = { on: false }, PZ = { s: 1, x: 0, y: 0, busy: false };
 let renderNotes = () => {}; // cur: صفحة الملف المعروضة (الأولى/اليمنى)
 cur = 1;
-try { const s = +localStorage.getItem('sci5-p2'); if (s >= 1 && s <= N) cur = s; } catch (e) {}
+try { const s = +localStorage.getItem('math6-p'); if (s >= 1 && s <= N) cur = s; } catch (e) {}
 if (/^#p\d+$/.test(location.hash)) cur = clamp(+location.hash.slice(2), 1, N);
 const book = $('#book'), wrap = $('#bookWrap'), stage = $('#stage');
 let pageWpx = 300;
@@ -77,7 +77,7 @@ function render() {
 function updateNum() {
   const t = mode === 'spread' ? (() => { const [r, l] = spreadPages(spreadOf(cur)); return l && r >= 6 ? 'ص ' + ar(toPrinted(r)) + '–' + ar(toPrinted(l)) : (l ? pageLabel(r) + ' – ' + pageLabel(l) : pageLabel(r)); })() : pageLabel(cur);
   $('#pnum').textContent = t;
-  try { localStorage.setItem('sci5-p2', cur); } catch (e) {}
+  try { localStorage.setItem('math6-p', cur); } catch (e) {}
   onPage(cur);
   try { history.replaceState(null, '', '#p' + toPrinted(cur)); } catch (e) {}
 }

@@ -6,7 +6,7 @@ import { CHAPTERS, PAGES } from './toc.js';
 
 keypad();
 const main = $('#main');
-const EMBED = new URLSearchParams(location.search).has('embed');
+const EMBED = new URLSearchParams(location.search).has('embed') || location.protocol === 'blob:';
 const PIMG = p => { try { const M = window.__IMG || (EMBED && parent.__IMG); if (M && M['pages/' + p + '.webp']) return M['pages/' + p + '.webp']; } catch (e) {} return (EMBED ? '../pages/' : 'pages/') + p + '.webp'; };
 const toBook = p => parent.postMessage({ mb: 'go', p: +p }, '*');
 if (EMBED) { document.documentElement.classList.add('embed'); const x = document.createElement('button'); x.className = 'hb'; x.id = 'mbClose'; x.title = 'العودة إلى الكتاب'; x.textContent = '📖'; x.onclick = () => parent.postMessage({ mb: 'close' }, '*'); document.querySelector('.hrow').appendChild(x); }
