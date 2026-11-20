@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>الخطوات الأربع لحل المسألة — رياضيات الصف السادس</title>
+<title>رياضيات الصف السادس — كتاب تفاعلي</title>
 <meta name="theme-color" content="#c8102e">
 <link rel="stylesheet" href="fonts/tajawal.css">
 <style>
@@ -108,16 +108,48 @@ select{font:inherit;font-weight:800;border-radius:12px;border:2px solid var(--li
 #toast{position:fixed;top:120px;left:50%;transform:translateX(-50%) translateY(-20px);background:#1f2633;color:#fff;border-radius:14px;padding:8px 16px;font-weight:800;opacity:0;transition:.3s;z-index:400;pointer-events:none}#toast.show{opacity:1;transform:translateX(-50%)}
 /* وضع العرض */
 body.present{font-size:22px}body.present main{max-width:1200px}body.present .ptext{font-size:26px}body.present .opts button{font-size:22px}body.present #tabs button{font-size:16px}body.present .mx{font-size:1.05em}
+
+
+/* الرئيسة */
+.resume{display:block;background:#fff4d6;border:2px solid #f0c860;border-radius:16px;padding:10px 14px;margin-bottom:10px;color:#6a4a00;text-decoration:none;font-weight:700}
+.hgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.hcard{background:#fff;border-radius:18px;padding:12px;text-align:center;text-decoration:none;color:var(--ink);font-size:30px;box-shadow:0 2px 8px rgba(60,40,10,.08)}.hcard b{display:block;font-size:17px}.hcard small{display:block;font-size:13px;color:#777}.hcard.book{background:linear-gradient(135deg,#fff,#fdeceb)}
+.chap{background:#fff;border-radius:18px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 8px rgba(60,40,10,.07)}.chh{display:flex;gap:10px;align-items:center;background:var(--c);color:#fff;padding:10px 14px}.chh b{font-size:18px}.chh small{display:block;opacity:.85}.chn{background:#fff;color:var(--c);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;flex:none}
+.units{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1px;background:#eee}.unit{display:flex;align-items:center;gap:10px;background:#fff;padding:9px 12px;text-decoration:none;color:var(--ink)}.unit:active{background:#f6f0ff}
+.un{min-width:44px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--c) 14%,#fff);color:var(--c);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:none}.unit.test .un,.unit.explore .un,.unit.ext .un{background:#f3f3f3}
+.ut{flex:1;font-weight:700;line-height:1.4}.ut small{display:block;color:#888;font-weight:500;font-size:12.5px}.done{font-size:12px;font-weight:800;color:#2f8f6a;background:#eafaf1;border-radius:9px;padding:0 6px}
+.loading{text-align:center;padding:40px;font-weight:800;color:#888}
+.idea p{font-size:18px;font-weight:700;margin:6px 0}.vocab{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.vocab button{border:2px solid #ffd34a;background:#fff8d8;border-radius:12px;padding:2px 10px;font:inherit;font-weight:800;cursor:pointer}.vdef{margin-top:6px;background:#fffbea;border-radius:10px;padding:0 10px}.vdef:empty{display:none}
+.keybox{background:#eef5ff;border-right:5px solid #3a7ae0;border-radius:12px;padding:8px 12px;margin:8px 0}.keybox b.t{color:#1a4a9a;display:block}
+.pages figure{margin:0 0 12px;background:#fff;border-radius:14px;padding:6px;box-shadow:0 2px 8px rgba(0,0,0,.08)}.pages img{width:100%;border-radius:10px;display:block}.pages figcaption{text-align:center;font-weight:800;padding:4px}
+.pgin{width:60px;text-align:center;font:inherit;font-weight:800;border:2px solid var(--line);border-radius:10px}.golesson{display:block;text-align:center;background:#2f8f6a;color:#fff;border-radius:12px;padding:6px;margin:8px 0;font-weight:800;text-decoration:none}
+.plt{flex:1;font-weight:600;font-size:15px;color:#333}
+.mx sup{font-size:.7em;margin:0 1px}.mx .pr{font-style:normal;margin:0 2px}.mx .v{font-style:normal}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;line-height:1.15;margin:0 3px;font-weight:800}.fr b:first-child{border-bottom:2px solid currentColor;padding:0 3px}.mxd{display:inline-flex;align-items:center;gap:2px;direction:rtl}
+.opts.inl{display:flex;flex-wrap:wrap}.opts.inl button{min-width:64px;text-align:center;font-size:20px}
+.fld b{min-width:90px}
+#kp .kx{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px;justify-content:center}#kp .kx:empty{display:none}#kp .kx button{flex:1;min-width:40px;background:#e8e4ff;font-size:19px;padding:7px 0}#kp .kb{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}#kp{grid-template-columns:1fr}
+#back{font-size:20px;padding:4px 12px}
+#botIn{border:0;border-top:1px solid #eee;padding:10px;font:inherit;font-size:15px;outline:none}
+
+
+.rects{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:8px 0}.rc{text-align:center;flex:1;min-width:120px}.rc svg{display:block;margin:auto}
+.tree{overflow-x:auto;padding:6px 0;text-align:center}.tn{display:inline-flex;flex-direction:column;align-items:center;margin:0 4px;vertical-align:top}.tk{display:flex;gap:6px;border-top:2px solid #b8a080;padding-top:8px;margin-top:4px}
+.tv{border:0;border-radius:50%;min-width:46px;height:46px;font:inherit;font-weight:800;font-size:18px;color:#fff;cursor:pointer}.tv.pr{background:#2f8f6a}.tv.cp{background:#e07a1a;animation:pulse 1.6s infinite}.tv.sp{background:#9a8a70}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(224,122,26,.25)}}
+
 footer{text-align:center;color:#8a8270;font-size:13px;padding:10px}
 @media (max-width:520px){.opts.g2{grid-template-columns:1fr 1fr}header h1{font-size:16px}.hb{padding:5px 7px;font-size:12.5px}.ml span{min-width:120px;font-size:13px}}
+.fold{text-align:center;margin:8px 0}.fold svg{width:100%}.sl{display:flex;align-items:center;gap:8px;margin:6px 0}.sl input{flex:1}.big{font-size:1.35em;text-align:center;margin:8px 0}.c{text-align:center}
+.opline{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;align-items:center;direction:rtl;font-size:1.4em;margin:10px 0}.tkn{padding:2px 4px}.tkn.pr{color:#888}.tko{border:2px solid #1a7ac0;background:#eaf4fc;border-radius:10px;min-width:40px;padding:2px 8px;font:inherit;cursor:pointer}.tko.pw{min-width:26px;padding:0 6px;align-self:flex-start}.tko.no{background:#fdd;border-color:#c33;animation:shk .4s}@keyframes shk{25%{transform:translateX(4px)}75%{transform:translateX(-4px)}}ol.calc{direction:rtl}
+.row.fld{flex-wrap:nowrap}.row.fld b{min-width:60px}.row.fld input{min-width:0;flex:1 1 auto}
+ol{list-style-type:arabic-indic}
 </style>
 </head>
 <body>
-<header><div class="hrow"><span class="badge">١-١</span><h1>الخطواتُ الأربعُ لحلِّ المسألة<small>رياضيات الصف السادس · الفصل ١ · ص ١٠–١٦</small></h1><button class="hb" id="stars">⭐ ٠</button><button class="hb" id="present">🖥️ وضعُ العرض</button></div><nav id="tabs"></nav></header>
+<header><div class="hrow"><button class="hb" id="back" style="display:none">→</button><span class="badge" id="hbadge">٦</span><h1 id="ht">رياضيات الصفّ السادس</h1><button class="hb" id="stars">⭐ ٠</button><button class="hb" id="present" title="وضع العرض">🖥️</button></div><nav id="tabs"></nav></header>
 <main id="main"></main>
-<footer>تصميم: أ. فهد الشيخي</footer>
 <div id="bot"><div class="bh">🤖<div>مساعدُ الرياضيّات<small>يجيبُ من محتوى الدرس — يعملُ دونَ إنترنت</small></div><button id="botX">×</button></div><div id="botLog"></div>
-<div id="botQ"><button data-q="hint">💡 تلميح</button><button data-q="plan">🗺️ كيف أبدأ؟</button><button data-q="err">🔍 أين خطئي؟</button><button data-q="sol">🪜 الحلُّ خطوةً بخطوة</button><button data-q="sim">🔁 مسألةٌ مشابهة</button><button data-q="steps">الخطواتُ الأربع</button><button data-q="kw">الكلماتُ المفتاحيّة</button></div></div>
+<div id="botQ"><button data-q="idea">📘 الفكرة</button><button data-q="hint">💡 تلميح</button><button data-q="err">🔍 أين خطئي؟</button><button data-q="sol">🪜 الحلُّ خطوةً بخطوة</button><button data-q="sim">🔁 مسألةٌ مشابهة</button><button data-q="steps">الخطواتُ الأربع</button></div><input id="botIn" placeholder="اكتبْ مصطلحًا، مثل: الأس" autocomplete="off"></div>
 <button id="botBtn">🤖 المساعد</button>
 <div id="toast"></div>
 <script type="module" src="js/app.js"></script>

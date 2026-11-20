@@ -17,21 +17,23 @@ export const M = parts => `<span class="mx">${parts.map(p => typeof p === 'numbe
 
 /* ───────── لوحةُ الأرقام ───────── */
 let kp = null, kpIn = null;
+const KPX = { num: ['−'], list: ['،', '−'], time: [':', '،'], frac: ['/', '␣', '−'], expr: ['س', 'ن', '+', '−', '×', '÷', '(', ')', '^'], pf: ['×', '^'], cmp: ['<', '>', '='] };
 export function keypad() {
   if (kp) return kp;
   kp = document.createElement('div'); kp.id = 'kp';
-  kp.innerHTML = ['٧', '٨', '٩', '⌫', '٤', '٥', '٦', ',', '١', '٢', '٣', '،', '٠', ':', '−', '✓'].map(k => `<button type="button" data-k="${k}" class="${k === '✓' ? 'ok' : k === '⌫' ? 'bk' : ''}">${k}</button>`).join('') + '<button type="button" class="hide" data-k="x">⌄ إخفاء</button>';
+  kp.innerHTML = '<div class="kx"></div><div class="kb">' + ['٧', '٨', '٩', '⌫', '٤', '٥', '٦', ',', '١', '٢', '٣', '٠', '✓'].map(k => `<button type="button" data-k="${k}" class="${k === '✓' ? 'ok' : k === '⌫' ? 'bk' : ''}">${k}</button>`).join('') + '</div><button type="button" class="hide" data-k="x">⌄ إخفاء اللوحة</button>';
   document.body.appendChild(kp);
   kp.addEventListener('pointerdown', e => e.preventDefault());
   kp.addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b || !kpIn) return; const k = b.dataset.k;
-    if (k === 'x') return hideKp(); if (k === '⌫') kpIn.value = kpIn.value.slice(0, -1); else if (k === '✓') { kpIn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); if (kpIn.classList.contains('ok') || kpIn.disabled) hideKp(); return; } else kpIn.value += (k === '،' ? '، ' : k === '−' ? '-' : k);
+    if (k === 'x') return hideKp(); if (k === '⌫') kpIn.value = kpIn.value.slice(0, -1); else if (k === '✓') { kpIn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); if (kpIn.classList.contains('ok') || kpIn.disabled) hideKp(); return; }
+    else kpIn.value += (k === '،' ? '، ' : k === '␣' ? ' ' : k === '^' ? '^' : k);
     kpIn.dispatchEvent(new Event('input', { bubbles: true })); });
-  document.addEventListener('focusin', e => { const t = e.target; if (t.matches && t.matches('input.ans')) { kpIn = t; if (!t.classList.contains('cell')) { kp.classList.add('show'); document.body.classList.add('kpon'); } } });
+  document.addEventListener('focusin', e => { const t = e.target; if (t.matches && t.matches('input.ans')) { kpIn = t; if (!t.classList.contains('cell')) { const x = KPX[t.dataset.kp || 'num'] || KPX.num; kp.querySelector('.kx').innerHTML = x.map(k => `<button type="button" data-k="${k}">${k === '␣' ? 'مسافة' : k === '^' ? 'أُس' : k}</button>`).join(''); kp.classList.add('show'); document.body.classList.add('kpon'); } } });
   document.addEventListener('pointerdown', e => { if (kp.classList.contains('show') && !e.target.closest('#kp') && !e.target.closest('input.ans')) hideKp(); });
   return kp;
 }
 export function hideKp() { kp && kp.classList.remove('show'); document.body.classList.remove('kpon'); }
-export const ansInput = (ph = 'إجابتي', w = '') => `<input class="ans" inputmode="none" autocomplete="off" placeholder="${ph}" ${w ? `style="width:${w}"` : ''}>`;
+export const ansInput = (ph = 'إجابتي', w = '', mode = 'num') => `<input class="ans" data-kp="${mode}" inputmode="none" autocomplete="off" placeholder="${ph}" ${w ? `style="width:${w}"` : ''}>`;
 
 /* ───────── الحسابُ العموديّ (جمع/طرح) ───────── */
 // يكتبُ الطالبُ الناتجَ رقمًا رقمًا من الآحاد إلى اليسار، مع تلميحاتِ الحملِ وإعادةِ التجميع
