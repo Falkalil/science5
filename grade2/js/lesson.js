@@ -1,12 +1,21 @@
 import { mountAssistant } from './assistant.js';
 import { ASSIST } from './assist.js';
-import { LABS } from './vlab.js';
+import { LABS, LAB_FOR } from './vlab.js';
 // واجهة الدرس التفاعلي: التهيئة، الأهداف، المفاهيم، الشرح، التقويم
 const AR = s => String(s).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 const CSS = `
+#lesson .lvbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#f6f2ff;border:1px solid #ddd0fa;border-radius:14px;padding:8px 10px;margin-bottom:10px;font-weight:800}
+#lesson .lvbar button{border:2px solid #d0c0f0;background:#fff;border-radius:12px;padding:6px 12px;font:inherit;font-weight:800;cursor:pointer}
+#lesson .lvbar button.on{background:#6a4ad8;border-color:#6a4ad8;color:#fff}
+#lesson .lvbar small{flex-basis:100%;color:#5a4a8a;font-weight:600}
+#lesson .hintb{display:inline-block;margin-top:6px;background:#fff8e0;border:1px dashed #e0b040;border-radius:10px;padding:3px 10px;font-weight:800;color:#8a5a00;cursor:pointer;font-size:14px}
+#lesson .fin{border:2px solid #c9b8f0;border-radius:10px;padding:3px 8px;font:inherit;font-weight:800;width:150px;max-width:60%;background:#fbf9ff}
+#lesson .fin.ok{border-color:#2f8f6a;background:#eefaf3}#lesson .fin.no{border-color:#e0603a;background:#fff0ec}
+#lesson .card.enrich{background:#f8f4ff;border-color:#ddd0fa}
+
 #lesson .lh .stars{background:#ffcf3a;color:#5a3a00;border-radius:20px;padding:4px 12px;font-weight:800;font-size:16px;white-space:nowrap}
 #lesson .lh .stars.pop{animation:spop .6s}@keyframes spop{50%{transform:scale(1.35)}}
 #lesson .lh button.pm{font-size:15px;padding:0 10px;white-space:nowrap}
@@ -337,7 +346,7 @@ export function initLessons(LESSONS, ctx) {
 
 
   function genericExplore(X) {
-    if (!X) return '';
+    if (!X || !X.title) return '';
     return `<div class="card blue"><span class="tag">🔬 ${X.kind || 'أستكشفُ — نشاطٌ استقصائيّ'}</span> ${pageBtn(X.page)}
       <h3>${X.title}</h3>${X.intro ? `<p>${X.intro}</p>` : ''}
       ${X.needs ? `<div style="font-weight:800;margin-top:6px">أحتاجُ إلى: <span style="font-weight:600">${X.needs.join('، ')}</span></div>` : ''}
@@ -367,7 +376,7 @@ export function initLessons(LESSONS, ctx) {
 
   /* ── ١. التهيئة ── */
   function rEngage(el) {
-    const E = L.engage, X = L.explore;
+    const E = L.engage, X = L.explore || {}; const UL = !X.lab && LAB_FOR[L.id];
     el.innerHTML = `
     <div class="hero"><div class="ph" style="${crop(E.page, E.crop)}"></div>
       ${E.anim === 'rain' ? `      <svg viewBox="0 0 1112 800" preserveAspectRatio="none">
@@ -396,12 +405,12 @@ export function initLessons(LESSONS, ctx) {
       <table><tr><th>الساق</th><th>عددُ الأوراق</th><th>مسافةُ انتقالِ الماء (سم)</th></tr>${['الأولى', 'الثانية', 'الثالثة'].map((n, i) => `<tr><td>${n}</td><td>${['لا أوراق', 'ورقة واحدة', 'كلّ الأوراق'][i]}</td><td id="m${i}">—</td></tr>`).join('')}</table>
       <div style="font-weight:800;margin-top:10px">٤) أستخلصُ النتائج:</div>
       ${X.concl.map((c, i) => `<div class="qi"><div class="qq">${c.q}</div><button class="abtn sec" data-rv="c${i}">اعرضِ الإجابة</button><div class="reveal" id="c${i}">${c.a}</div></div>`).join('')}
-      <p style="color:#6a5a44">💡 ${X.more}</p></div>` : X.lab && LABS[X.lab] ? `<div class="card blue"><span class="tag">🧪 المختبرُ الافتراضيّ — أستكشف</span> ${pageBtn(X.page, 'النشاطُ في الكتاب ص ' + AR(X.page))}<h3>${X.title}</h3><p>${X.intro}</p><div id="vlab"></div><p style="color:#6a5a44">💡 ${X.more}</p></div>` : genericExplore(X)}`;
+      <p style="color:#6a5a44">💡 ${X.more}</p></div>` : X.lab && LABS[X.lab] ? `<div class="card blue"><span class="tag">🧪 المختبرُ الافتراضيّ — أستكشف</span> ${pageBtn(X.page, 'النشاطُ في الكتاب ص ' + AR(X.page))}<h3>${X.title}</h3><p>${X.intro}</p><div id="vlab"></div><p style="color:#6a5a44">💡 ${X.more}</p></div>` : genericExplore(X)}${UL ? `<div class="card blue"><span class="tag">🧪 المختبرُ الافتراضيّ — أجرّبُ بنفسي</span><h3>${UL.title}</h3><p>${UL.intro}</p><div id="vlab2"></div></div>` : ''}`;
     if (L.active && E.warmups) { const wc = el.querySelector('.card.orange'); if (wc) wc.outerHTML = `<div class="card orange"><span class="tag o">💬 فكّرْ – زاوِجْ – شارِكْ</span>${E.warmups.map(w => `<p style="font-weight:700">• ${w.q}</p>`).join('')}
       <div class="tps"><button data-tps="0"><b>🤔</b>١. فكّرْ وحدَك<br><small>٣٠ ثانية</small></button><button data-tps="1"><b>👫</b>٢. ناقشْ زميلَك<br><small>دقيقة</small></button><button data-tps="2"><b>🙋</b>٣. شاركِ الصفّ<br><small>دقيقة</small></button></div><div class="tpsT"></div></div>`;
       let ti = 0; const T = el.querySelector('.tpsT');
       el.querySelectorAll('[data-tps]').forEach(b => b.onclick = () => { const k = +b.dataset.tps, secs = [30, 60, 60][k]; el.querySelectorAll('[data-tps]').forEach((x, i) => { x.classList.toggle('on', i === k); if (i < k) x.classList.add('ok'); }); clearInterval(ti); let left = secs; T.textContent = fmt(left); ti = setInterval(() => { if (!document.body.contains(T)) return clearInterval(ti); left--; T.textContent = left > 0 ? fmt(left) : (k < 2 ? '⏰ انتقلْ إلى الخطوةِ التالية' : '🌟 أحسنتم!'); if (left <= 0) { clearInterval(ti); beep(); if (k === 2) award(1, 'شاركتَ في النقاش'); } }, 1000); }); }
-    if (X.lab && LABS[X.lab]) LABS[X.lab](el.querySelector('#vlab'), { award, AR });
+    if (X.lab && LABS[X.lab]) LABS[X.lab](el.querySelector('#vlab'), { award, AR }); if (UL && LABS[UL.lab]) LABS[UL.lab](el.querySelector('#vlab2'), { award, AR });
     const qb = el.querySelector('.qbox'), lab = el.querySelector('.lab');
     if (NARRATION) setScript(() => [{ t: 'أنظرُ وأتساءلُ. ' + E.look + ' ' + E.question, el: qb }, ...(el.querySelector('#eAns').classList.contains('show') ? [{ t: E.reveal, el: el.querySelector('#eAns') }] : []), { t: 'أسئلةٌ للنقاش. ' + E.warmups.map(w => w.q).join(' '), el: el.querySelector('.card.orange') }, { t: 'أستكشفُ. ' + X.title + ' ' + X.intro + ' أكوّنُ فرضيّةً. ' + X.steps.join(' '), el: lab }], 'استمع إلى التهيئة');
     el.querySelectorAll('#eChips .chip').forEach(b => b.onclick = () => b.classList.toggle('on'));
@@ -532,10 +541,31 @@ export function initLessons(LESSONS, ctx) {
   }
 
   /* ── ٥. التقويم ── */
+
+  /* ── مستوياتُ الأسئلة: دعم / أساسي / إثراء ── */
+  const LVN = [['🟢', 'دعم'], ['🔵', 'أساسي'], ['🟣', 'إثراء']];
+  const getLv = () => { try { const v = +localStorage.getItem('sci-level'); return v >= 0 && v <= 2 ? v : 1; } catch (e) { return 1; } };
+  const lvBar = LV => `<div class="lvbar"><span>مستوى الأسئلة:</span>${LVN.map(([i, t], k) => `<button data-lv="${k}" class="${k === LV ? 'on' : ''}">${i} ${t}</button>`).join('')}<small>${['أسئلةٌ بخيارين وتلميحات وبداياتٌ للإجابة', 'أسئلةُ الدرسِ كما هي', 'إكمالٌ بالكتابة + تحدّياتُ تفسيرٍ ومقارنة'][LV]}</small></div>`;
+  const nrm = s => String(s).replace(/<[^>]+>/g, '').replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/^ال/, '').replace(/\s+/g, ' ').trim();
+  const stripT = s => String(s).replace(/<[^>]+>/g, '');
+  function mcqOpts(q, LV) { let ks = q.o.map((_, k) => k); if (LV === 0 && ks.length > 2) { const other = shuffle(ks.filter(k => k !== q.a))[0]; ks = ks.filter(k => k === q.a || k === other); } return ks.map((k, j) => `<button data-k="${k}">${'أبجد'[j]}) ${q.o[k]}</button>`).join(''); }
+  const hintH = (LV, p) => LV === 0 ? `<span class="hintb" data-hint="${p}">💡 تلميح</span>` : '';
+  function enrichHTML() {
+    const AD = L.assist || ASSIST[L.id] || {}; const out = [];
+    L.sections.forEach(S => { const e = (AD.sections || {})[S.id]; if (e && e.why && out.length < 3) { const tt = stripT(S.title).replace(/^[\d٠-٩.\-–\s]+/, ''); out.push({ q: /[؟?]$/.test(tt) ? 'أجبْ بلغتِك العلميّة مع التفسيرِ والدليل: <b>' + tt + '</b>' : 'فسِّرْ بلغتِك العلميّة فكرةَ «<b>' + tt + '</b>»: لماذا تحدث؟ وما الدليلُ عليها؟', a: e.why }); } });
+    (AD.pairs || []).slice(0, 2).forEach(p => out.push({ q: 'قارِنْ بينَ <b>' + p[0] + '</b> و<b>' + p[1] + '</b>: أوجهُ الشبهِ والاختلاف.', a: p[2] }));
+    if (!out.length) return '';
+    return `<div class="card enrich"><span class="tag">🚀 تحدّي الإثراء — مهاراتُ التفكيرِ العليا</span>${out.map((x, i) => `<div class="qi"><div class="qq">${x.q}</div><textarea style="width:100%;min-height:64px;border-radius:10px;border:1px solid #c9b8f0;padding:8px;font:inherit;margin-top:6px" placeholder="أكتبُ تفسيري…"></textarea><button class="abtn sec" data-rv="en${i}">قارنْ بالإجابةِ النموذجية</button><div class="reveal" id="en${i}">${x.a}</div></div>`).join('')}</div>`;
+  }
+  function wireLv(el) {
+    el.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { try { localStorage.setItem('sci-level', b.dataset.lv); } catch (e) {} rQuiz(el); });
+    el.querySelectorAll('[data-hint]').forEach(h => h.onclick = () => { h.innerHTML = '💡 ابحثْ عن الإجابةِ في <button class="pbtn" data-go="' + h.dataset.hint + '">ص ' + AR(h.dataset.hint) + '</button>'; });
+  }
   function rQuiz(el) {
+    const LV = getLv();
     const Q = L.quiz; const ORD = L.order || (L.transportSteps ? { title: 'رتّبْ مراحلَ النقلِ في النبات', steps: L.transportSteps } : null);
     const total = Q.mcq.length + Q.tf.length + Q.fill.items.length + (ORD ? 1 : 0); let score = 0, answered = 0;
-    el.innerHTML = `<div class="score"><div><div style="font-size:13px">درجتي</div><div class="big" id="sc">٠ / ${AR(total)}</div></div><div class="bar"><i id="scb" style="width:0"></i></div><button class="abtn sec" id="qReset" style="margin:0">🔄 إعادة</button></div>
+    el.innerHTML = `${lvBar(LV)}<div class="score"><div><div style="font-size:13px">درجتي</div><div class="big" id="sc">٠ / ${AR(total)}</div></div><div class="bar"><i id="scb" style="width:0"></i></div><button class="abtn sec" id="qReset" style="margin:0">🔄 إعادة</button></div>
       <h3>أولًا: اخترِ الإجابةَ الصحيحة</h3><div id="qM"></div>
       <h3>ثانيًا: صوابٌ أم خطأ؟</h3><div id="qT"></div>
       <h3>ثالثًا: أكملِ الفراغ — المسِ الفراغَ ثم المسِ الكلمةَ المناسبة</h3><div class="bank" id="qBank"></div><div id="qF"></div>
@@ -546,24 +576,28 @@ export function initLessons(LESSONS, ctx) {
     const upd = () => { el.querySelector('#sc').textContent = AR(score) + ' / ' + AR(total); el.querySelector('#scb').style.width = (score / total * 100) + '%'; const end = el.querySelector('#qEnd'); end.innerHTML = answered >= total ? `<b style="background:none;font-size:20px">${score >= total * .9 ? '🌟 ممتاز!' : score >= total * .7 ? '👍 أحسنت!' : '💪 راجعِ الدرسَ وحاولْ مرةً أخرى'}</b><p>أجبتَ إجابةً صحيحةً عن ${AR(score)} من ${AR(total)}.</p>` : `<p style="margin:0">أجبتَ عن ${AR(answered)} من ${AR(total)} سؤالًا.</p>`; if (answered >= total) { prog.best = Math.max(prog.best || 0, score); save(); } };
     const mark = ok => { answered++; if (ok) { score++; award(1); } upd(); };
     const bookTag = q => q.book ? '<span class="bk">من الكتاب</span>' : '';
-    el.querySelector('#qM').innerHTML = Q.mcq.map((q, i) => `<div class="qi" data-m="${i}"><div class="qq">${AR(i + 1)}. ${bookTag(q)}${q.q}${spk(q.q + ' ' + q.o.map((o, k) => 'أ ب ج د'.split(' ')[k] + '، ' + o + '.').join(' '))}</div><div class="opts">${q.o.map((o, k) => `<button data-k="${k}">${'أبجد'[k]}) ${o}</button>`).join('')}</div><div class="fb"></div></div>`).join('');
-    el.querySelectorAll('[data-m]').forEach(d => { const q = Q.mcq[+d.dataset.m]; d.querySelectorAll('button').forEach(b => b.onclick = () => { if (d.dataset.done) return; d.dataset.done = 1; const ok = +b.dataset.k === q.a; b.classList.add(ok ? 'ok' : 'no'); d.querySelectorAll('button')[q.a].classList.add('ok'); const fb = d.querySelector('.fb'); fb.className = 'fb ' + (ok ? 'ok' : 'no'); fb.innerHTML = (ok ? '✓ إجابةٌ صحيحة' : '✗ الإجابةُ الصحيحة: ' + q.o[q.a]) + ` <button class="pbtn" data-go="${q.p}">ص ${AR(q.p)}</button>`; mark(ok); }); });
-    el.querySelector('#qT').innerHTML = Q.tf.map((q, i) => `<div class="qi" data-t="${i}"><div class="qq">${AR(i + 1)}. ${q.q}${spk(q.q + ' صوابٌ أم خطأ؟')}</div><div class="opts"><button data-v="1">✓ صواب</button><button data-v="0">✗ خطأ</button></div><div class="fb"></div></div>`).join('');
+    el.querySelector('#qM').innerHTML = Q.mcq.map((q, i) => `<div class="qi" data-m="${i}"><div class="qq">${AR(i + 1)}. ${bookTag(q)}${q.q}${spk(q.q + ' ' + q.o.map((o, k) => 'أ ب ج د'.split(' ')[k] + '، ' + o + '.').join(' '))}</div><div class="opts">${mcqOpts(q, LV)}</div>${hintH(LV, q.p)}<div class="fb"></div></div>`).join('');
+    el.querySelectorAll('[data-m]').forEach(d => { const q = Q.mcq[+d.dataset.m]; d.querySelectorAll('button').forEach(b => b.onclick = () => { if (d.dataset.done) return; d.dataset.done = 1; const ok = +b.dataset.k === q.a; b.classList.add(ok ? 'ok' : 'no'); d.querySelector('[data-k="' + q.a + '"]').classList.add('ok'); const fb = d.querySelector('.fb'); fb.className = 'fb ' + (ok ? 'ok' : 'no'); fb.innerHTML = (ok ? '✓ إجابةٌ صحيحة' : '✗ الإجابةُ الصحيحة: ' + q.o[q.a]) + ` <button class="pbtn" data-go="${q.p}">ص ${AR(q.p)}</button>`; mark(ok); }); });
+    el.querySelector('#qT').innerHTML = Q.tf.map((q, i) => `<div class="qi" data-t="${i}"><div class="qq">${AR(i + 1)}. ${q.q}${spk(q.q + ' صوابٌ أم خطأ؟')}</div><div class="opts"><button data-v="1">✓ صواب</button><button data-v="0">✗ خطأ</button></div>${hintH(LV, q.p)}<div class="fb"></div></div>`).join('');
     el.querySelectorAll('[data-t]').forEach(d => { const q = Q.tf[+d.dataset.t]; d.querySelectorAll('button').forEach(b => b.onclick = () => { if (d.dataset.done) return; d.dataset.done = 1; const ok = (b.dataset.v === '1') === q.a; b.classList.add(ok ? 'ok' : 'no'); const fb = d.querySelector('.fb'); fb.className = 'fb ' + (ok ? 'ok' : 'no'); fb.innerHTML = (ok ? '✓ أحسنت' : '✗ العبارةُ ' + (q.a ? 'صحيحة' : 'خاطئة')) + (q.fix ? `<br>التصحيح: ${q.fix}` : '') + ` <button class="pbtn" data-go="${q.p}">ص ${AR(q.p)}</button>`; mark(ok); }); });
     let selBlank = null;
-    el.querySelector('#qBank').innerHTML = shuffle(Q.fill.bank).map(w => `<button data-w="${w}">${w}</button>`).join('');
-    el.querySelector('#qF').innerHTML = Q.fill.items.map((q, i) => `<div class="qi"><div class="qq">${AR(i + 1)}. ${bookTag(q)}${q.q.replace('____', `<span class="blank" data-b="${i}">؟</span>`)}${spk(q.q.replace('____', 'فراغ'))}</div></div>`).join('');
+    el.querySelector('#qBank').innerHTML = LV === 2 ? '<span style="font-weight:800;color:#5a4a8a">✍️ مستوى الإثراء: اكتبِ الكلمةَ المناسبةَ بنفسِك ثم اضغطْ «تحقّقْ».</span>' : shuffle(Q.fill.bank).map(w => `<button data-w="${w}">${w}</button>`).join('');
+    el.querySelector('#qF').innerHTML = Q.fill.items.map((q, i) => `<div class="qi"><div class="qq">${AR(i + 1)}. ${bookTag(q)}${q.q.replace('____', LV === 2 ? `<input class="fin" data-fi="${i}" placeholder="…"><button class="pbtn" data-fc="${i}">تحقّقْ</button>` : `<span class="blank" data-b="${i}">${LV === 0 ? stripT(q.a).trim()[0] + '…؟' : '؟'}</span>`)}${spk(q.q.replace('____', 'فراغ'))}</div></div>`).join('');
     el.querySelectorAll('.blank').forEach(b => b.onclick = () => { if (b.classList.contains('ok') || b.classList.contains('no')) return; el.querySelectorAll('.blank').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); selBlank = b; });
     el.querySelectorAll('#qBank button').forEach(w => w.onclick = () => { if (!selBlank) { const first = [...el.querySelectorAll('.blank')].find(x => !x.classList.contains('ok') && !x.classList.contains('no')); if (!first) return; selBlank = first; } const q = Q.fill.items[+selBlank.dataset.b]; const ok = w.dataset.w === q.a; selBlank.textContent = ok ? q.a : w.dataset.w + ' ✗ (' + q.a + ')'; selBlank.classList.remove('sel'); selBlank.classList.add(ok ? 'ok' : 'no'); if (ok) w.classList.add('used'); selBlank = null; mark(ok); });
     // الترتيب
     let k = 0, bad = false; const O = el.querySelector('#qO') || document.createElement('div'); const NS = ORD ? ORD.steps.length : 0;
     if (ORD) O.innerHTML = shuffle(ORD.steps.map((s, i) => [s, i])).map(([s, i]) => `<button data-i="${i}">${s}</button>`).join('');
     O.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.classList.contains('ok') || k >= NS) return; if (+b.dataset.i === k) { b.classList.add('ok'); b.insertAdjacentHTML('afterbegin', `<span class="k">${AR(k + 1)}</span>`); k++; if (k === NS) { const fb = el.querySelector('#qOfb'); fb.className = 'fb ' + (bad ? 'no' : 'ok'); fb.textContent = bad ? 'أكملتَ الترتيبَ بعد محاولاتٍ خاطئة.' : '✓ ترتيبٌ صحيحٌ من المحاولةِ الأولى!'; mark(!bad); } } else { bad = true; b.classList.add('bad'); setTimeout(() => b.classList.remove('bad'), 400); } });
-    el.querySelector('#qX').innerHTML = Q.open.map((q, i) => `<div class="qi"><div class="qq">${q.q}</div><textarea style="width:100%;min-height:70px;border-radius:10px;border:1px solid #d9c9a8;padding:8px;font:inherit;margin-top:6px" placeholder="أكتبُ إجابتي هنا…"></textarea><button class="abtn sec" data-rv="o${i}">قارنْ بالإجابةِ النموذجية</button><div class="reveal" id="o${i}">${q.a}</div></div>`).join('');
+    el.querySelector('#qX').innerHTML = Q.open.map((q, i) => `<div class="qi"><div class="qq">${q.q}</div><textarea style="width:100%;min-height:70px;border-radius:10px;border:1px solid #d9c9a8;padding:8px;font:inherit;margin-top:6px" placeholder="${LV === 0 ? 'ابدأْ هكذا: ' + stripT(q.a).split(/\s+/).slice(0, 4).join(' ') + ' …' : 'أكتبُ إجابتي هنا…'}"></textarea><button class="abtn sec" data-rv="o${i}">قارنْ بالإجابةِ النموذجية</button><div class="reveal" id="o${i}">${q.a}</div></div>`).join('');
     el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => el.querySelector('#' + b.dataset.rv).classList.toggle('show'));
+    el.querySelectorAll('[data-fc]').forEach(b => b.onclick = () => { const i = +b.dataset.fc, inp = el.querySelector(`[data-fi="${i}"]`); if (inp.disabled || !inp.value.trim()) return; const q = Q.fill.items[i], ok = nrm(inp.value) === nrm(q.a); inp.disabled = true; inp.classList.add(ok ? 'ok' : 'no'); if (!ok) inp.value += ' ✗ (' + stripT(q.a) + ')'; b.remove(); mark(ok); });
+    el.querySelectorAll('[data-fi]').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { const b = el.querySelector(`[data-fc="${inp.dataset.fi}"]`); b && b.click(); } });
+    { const xq = el.querySelector('#qX'); if (LV === 2) xq.insertAdjacentHTML('afterend', enrichHTML()); }
+    el.querySelectorAll('[data-rv^="en"]').forEach(b => b.onclick = () => el.querySelector('#' + b.dataset.rv).classList.toggle('show'));
     el.querySelector('#qReset').onclick = () => rQuiz(el);
     setScript(() => [...el.querySelectorAll('#qM .qi')].map((d, i) => ({ t: 'السؤالُ ' + (i + 1) + '. ' + Q.mcq[i].q + ' ' + Q.mcq[i].o.join('، أو ') + '؟', el: d })), 'استمع إلى أسئلة الاختيار');
-    upd(); wireExit(el);
+    upd(); wireExit(el); wireLv(el);
   }
   /* ── بطاقة الخروج ── */
   function exitHTML() {

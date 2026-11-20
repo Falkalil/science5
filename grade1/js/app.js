@@ -13,6 +13,7 @@ import { L1_B } from './lessons1b.js';
 import { L1_C } from './lessons1c.js';
 const LESSONS = [...L1_A, ...L1_B, ...L1_C].sort((a, b) => a.from - b.from);
 import { initLessons } from './lesson.js';
+import { initPractice } from './practice.js';
 
 const BUILD = {
   flower: M2.flowerModel, photosyn: A.photosynModel, soil: B.soilModel, pond: P.pondModel,
@@ -513,6 +514,7 @@ function openModelById(id) {
   goTo(m.pdf); const wait = () => { if (flip) return setTimeout(wait, 120); const h = book.querySelector(`.slot .hot[data-model="${m.id}"]`); if (h) setTimeout(() => openModel(m.id, h), 250); }; setTimeout(wait, 300);
 }
 const LS = initLessons(LESSONS, { src, PW, PH, goTo: n => { if (lifted) closeModel(); setTimeout(() => goTo(toPdf(n)), lifted ? 800 : 0); }, openModel: openModelById, closeModel: () => { if (lifted) closeModel(); } });
+const PR = initPractice(LESSONS, { key: 'sci1', grade: 1, goTo: n => { if (LS.isOpen()) LS.close(); goTo(toPdf(n)); } });
 onPage = n => LS.update(n);
 $('#btnLesson').onclick = () => { const l = LESSONS.find(x => cur >= x.from && cur <= x.to) || LESSONS[0]; LS.open(l); };
 $('#tocList').insertAdjacentHTML('afterbegin', `<div class="unit" style="background:#1e9bd7">الدروس التفاعلية</div>` + LESSONS.map((l, i) => `<div class="ti ch" data-lesson="${i}"><span>▶ ${l.title}</span><b>${ar(l.from)}</b></div>`).join(''));
@@ -527,6 +529,7 @@ function backStep() {
   if ($('#toolsPop').classList.contains('open')) { $('#toolsPop').classList.remove('open'); return true; }
   if (document.querySelector('.drawer.open')) { closeDrawers(); return true; }
   if (lifted) { closeModel(); return true; }
+  if (PR.isOpen()) { PR.close(); return true; }
   if (LS.isOpen()) { LS.close(); return true; }
   return false;
 }

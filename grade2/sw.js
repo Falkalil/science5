@@ -1,6 +1,6 @@
 // يعمل الكتاب دون إنترنت: كلُّ ملفٍّ يُحفظ في الذاكرة المؤقتة ويُقدَّم منها
-const CACHE = 'sci2-v2';
-const CORE = ['./', './index.html', './manifest.webmanifest', './fonts/tajawal.css', './js/app.js', './js/data.js', './js/kit.js', './js/lesson.js', './js/vlab.js', './js/assist.js', './js/assistant.js', './js/lessons2a.js', './js/lessons2b.js', './js/lessons2c.js', './js/lessons2d.js', './js/models2.js', './js/models4.js', './js/models6a.js', './js/models6b.js', './js/m4a.js', './js/m3.js', './js/m2.js', './js/three.module.min.js', './js/addons/controls/OrbitControls.js', './js/offline.js', './precache.json'];
+const CACHE = 'sci2-v3';
+const CORE = ['./', './index.html', './manifest.webmanifest', './fonts/tajawal.css', './js/app.js', './js/data.js', './js/kit.js', './js/lesson.js', './js/practice.js', './js/vlab.js', './js/assist.js', './js/assistant.js', './js/lessons2a.js', './js/lessons2b.js', './js/lessons2c.js', './js/lessons2d.js', './js/models2.js', './js/models4.js', './js/models6a.js', './js/models6b.js', './js/m4a.js', './js/m3.js', './js/m2.js', './js/three.module.min.js', './js/addons/controls/OrbitControls.js', './js/offline.js', './precache.json'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => Promise.allSettled(CORE.map(u => c.add(u)))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
