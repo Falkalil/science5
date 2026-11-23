@@ -1,5 +1,5 @@
 // مجسّمات الوحدة الأولى (١): الفيروس، الجذر، الساق، الورقة، النقل
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, cellTexture, noiseTexture, Flow, lerp, clamp, ease } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, cellTexture, noiseTexture, Flow, lerp, clamp, ease, tissue, vessel, twigs, mergeGeos, organGeo, fbm3, srnd, reseed, tissueBump } from './kit.js';
 
 /* ───────────── ص ٣٤: فيروس ملتصق بخلية بكتيرية ───────────── */
 export function virus(api) {
@@ -371,22 +371,27 @@ export function leafModel(api) {
 /* ───────────── ص ٤٦: النقل في النباتات ───────────── */
 export function transportModel(api) {
   const root = new THREE.Group();
-  const barkM = mat('#fff', { map: noiseTexture('#e9d29a', '#c9a96a', 3000), roughness: .9 });
+  const barkM = tissue('#8a6440', { kind: 'vein', bumpScale: 3, roughness: .9, clearcoat: 0, sheen: .2 }); reseed(81);
   // الجذع والفروع
-  const trunk = tube([[0, -3.2, 0], [0.05, -1.5, 0], [-0.05, 0.4, 0], [0.1, 2.2, 0], [0.0, 3.6, 0]], 0.55, barkM, 40, 20);
-  const br1 = tube([[0.05, 1.6, 0], [1.0, 2.4, 0.1], [2.2, 2.9, 0.1], [3.2, 3.0, 0]], 0.22, barkM, 30, 12);
-  const br2 = tube([[0.0, 0.2, 0], [0.9, 0.0, 0.2], [1.8, -0.2, 0.4]], 0.17, barkM, 30, 12);
-  root.add(trunk, br1, br2);
-  const rootsG = new THREE.Group(); root.add(rootsG); const rootM = mat('#b98d55', { roughness: .9 });
+  const trunk = vessel([[0, -3.2, 0], [0.05, -1.5, 0], [-0.05, 0.4, 0], [0.1, 2.2, 0], [0.0, 3.6, 0]], 0.62, 0.38, barkM, 60, 24, .06);
+  const br1 = vessel([[0.05, 1.6, 0], [1.0, 2.4, 0.1], [2.2, 2.9, 0.1], [3.2, 3.0, 0]], 0.24, 0.1, barkM, 30, 12, .05);
+  const br2 = vessel([[0.0, 0.2, 0], [0.9, 0.0, 0.2], [1.8, -0.2, 0.4]], 0.18, 0.08, barkM, 30, 12, .05);
+  const br3 = vessel([[0.0, 2.6, 0], [-1.1, 3.3, -.2], [-2.2, 3.7, -.3]], 0.2, 0.08, barkM, 30, 12, .05);
+  root.add(trunk, br1, br2, br3);
+  const tw = []; for (const [p, d] of [[[3.2, 3.0, 0], [1, .6, 0]], [[-2.2, 3.7, -.3], [-1, .7, 0]], [[0, 3.6, 0], [0, 1, 0]], [[2.2, 2.9, .1], [.3, 1, .2]]]) twigs(tw, V(...p), V(...d), .6, .07, 3, .8); root.add(new THREE.Mesh(mergeGeos(tw), barkM));
+  const rootsG = new THREE.Group(); root.add(rootsG); const rootM = tissue('#a8794a', { kind: 'vein', bumpScale: 2, roughness: .85, clearcoat: 0 });
   const rootPaths = [];
-  for (const d of [[-2.2, -4.4, .5], [-1, -4.8, -.8], [1.2, -4.7, .6], [2.4, -4.3, -.3], [0.2, -5.1, .2]]) { const pts = [V(0, -3.0, 0), V(d[0] * .4, -3.7, d[2] * .4), V(d[0], d[1], d[2])]; rootsG.add(tube(pts, 0.14, rootM, 20, 8)); rootPaths.push(pts); }
-  // تاج الشجرة
-  const crown = new THREE.Group(); root.add(crown); const leafM = mat('#4f9d3a', { roughness: .8, flatShading: true });
-  for (let i = 0; i < 22; i++) { const s = 0.7 + Math.random() * .7; crown.add(mesh(new THREE.IcosahedronGeometry(s, 1), leafM, [(Math.random() - .3) * 4.2, 3.6 + Math.random() * 1.6, (Math.random() - .5) * 2.4 - 1.2])); }
-  // الورقة المكبّرة داخل دائرة
+  for (const d of [[-2.2, -4.4, .5], [-1, -4.8, -.8], [1.2, -4.7, .6], [2.4, -4.3, -.3], [0.2, -5.1, .2]]) { const pts = [V(0, -3.0, 0), V(d[0] * .4, -3.7, d[2] * .4), V(d[0], d[1], d[2])]; rootsG.add(vessel(pts, 0.2, 0.05, rootM, 24, 10, .08)); rootPaths.push(pts);
+    const rt = []; twigs(rt, V(d[0], d[1], d[2]), V(d[0] * .3, -1, d[2] * .3), .5, .045, 3, 1.1); twigs(rt, V(d[0] * .6, (d[1] - 3.7) / 2 - .1, d[2] * .6), V(d[0], -.6, d[2]), .45, .04, 2, 1); rootsG.add(new THREE.Mesh(mergeGeos(rt), rootM)); }
+  // تاج الشجرة: كتلٌ ورقيّةٌ عضويّة
+  const crown = new THREE.Group(); root.add(crown); const leafM = new THREE.MeshPhysicalMaterial({ color: '#4f9a3a', roughness: .75, sheen: .8, sheenColor: new THREE.Color('#d8f0a0'), bumpMap: tissueBump('pore', 4), bumpScale: 4 }), leafM2 = leafM.clone(); leafM2.color = new THREE.Color('#3c7e2c');
+  for (let i = 0; i < 20; i++) { const s = 0.75 + srnd() * .75, k = i % 5; crown.add(mesh(organGeo(1, v => v.multiplyScalar(1 + fbm3(v.x * 2.3 + k, v.y * 2.3, v.z * 2.3) * .3), 36, 26), i % 2 ? leafM : leafM2, [(srnd() - .45) * 5, 3.7 + srnd() * 1.6, (srnd() - .5) * 2.4 - 1.2], null, [s, s * .85, s])); }
+  // الورقة المكبّرة داخل دائرة: نصلٌ بعروقٍ وانحناء
   const leafShape = new THREE.Shape(); leafShape.moveTo(0, 0); leafShape.bezierCurveTo(0.5, 0.55, 1.4, 0.6, 2.1, 0); leafShape.bezierCurveTo(1.4, -0.6, 0.5, -0.55, 0, 0);
-  const bigLeaf = mesh(new THREE.ShapeGeometry(leafShape, 24), mat('#69c24a', { side: 2, roughness: .5 }), [1.85, -0.25, 0.45], [0, 0, 0.15]); root.add(bigLeaf);
-  const midrib = tube([[1.85, -.25, .47], [2.8, -.12, .47], [3.9, .05, .47]], 0.03, mat('#3d8a2a'), 10, 6); root.add(midrib);
+  const lg = new THREE.ShapeGeometry(leafShape, 40); { const P = lg.attributes.position; for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i); P.setZ(i, -y * y * .35 + Math.sin(x * 2.2) * .05); } lg.computeVertexNormals(); }
+  const bigLeaf = mesh(lg, new THREE.MeshPhysicalMaterial({ color: '#5cb43c', side: 2, roughness: .4, clearcoat: .6, sheen: .6, bumpMap: tissueBump('vein', 7), bumpScale: 3 }), [1.85, -0.25, 0.45], [0, 0, 0.15]); root.add(bigLeaf);
+  const midrib = vessel([[1.85, -.25, .47], [2.8, -.12, .47], [3.9, .05, .47]], 0.035, 0.012, tissue('#3d8a2a', { kind: 'vein' }), 20, 8, 0); root.add(midrib);
+  for (let i = 1; i < 6; i++) for (const s of [-1, 1]) { const x0 = 1.85 + i * .33, y0 = -.25 + i * .05; root.add(vessel([[x0, y0, .48], [x0 + .2, y0 + s * .2, .47], [x0 + .32, y0 + s * .32 * (1 - i / 7), .45]], .014, .005, tissue('#4a9a30'), 8, 6, 0)); }
   const ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.06, 10, 80), mat('#c8502a')); ring.position.set(2.9, -0.1, 0.45); root.add(ring);
   // الشمس
   const sun = mesh(new THREE.SphereGeometry(0.55, 32, 24), new THREE.MeshBasicMaterial({ color: '#ffd23a' }), [4.6, 5.6, -1]); root.add(sun);
