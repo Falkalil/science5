@@ -31,11 +31,13 @@ function setTxt(sp, str, color = '#222') {
 export { setTxt };
 const AR = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 // كروموسوم على شكل X (كروماتيدان) أو مفرد
+const _chG = {};
 function chromo(color, len = .5, dup = true) {
-  const g = new THREE.Group(); const m = mat(color, { roughness: .4 });
-  const a = mesh(new THREE.CapsuleGeometry(.045, len, 4, 10), m); a.rotation.z = dup ? .32 : 0; g.add(a);
-  const b = mesh(new THREE.CapsuleGeometry(.045, len, 4, 10), m); b.rotation.z = -.32; b.visible = dup; g.add(b);
-  g.add(mesh(new THREE.SphereGeometry(.055, 10, 8), mat('#333'))); g.userData = { a, b }; return g;
+  const g = new THREE.Group(); const m = tissue(color, { kind: 'pore', bumpScale: 2.2, roughness: .5, clearcoat: .4 });
+  const geo = _chG[len] || (_chG[len] = organGeo(1, v => { const y = v.y; v.y *= len / 2 + .05; const k = (1 - .35 * Math.exp(-Math.pow(y / .12, 2))) * (1 + fbm3(v.x * 6, v.y * 30, v.z * 6) * .18); v.x *= .055 * k; v.z *= .055 * k; v.x += Math.sin(y * 3) * .012; }, 20, 40));
+  const a = mesh(geo, m); a.rotation.z = dup ? .32 : 0; g.add(a);
+  const b = mesh(geo, m); b.rotation.z = -.32; b.visible = dup; g.add(b);
+  g.add(mesh(new THREE.SphereGeometry(.045, 12, 10), tissue('#3a3040', { kind: 'pore' }))); g.userData = { a, b }; return g;
 }
 
 /* ═════════ ١) الخلية الحيوانية / النباتية (ص ٣٤–٣٥) ═════════ */
@@ -184,11 +186,11 @@ export function photosynModel(api) {
   const rays = new THREE.Group(); root.add(rays); for (let i = 0; i < 5; i++) { const r = mesh(new THREE.CylinderGeometry(.04, .04, 2.6, 6), mat('#ffe27a', { emissive: '#ffcf3a', emissiveIntensity: .7, transparent: true, opacity: .8 })); r.position.set(-2 + i * .12, 1.6 - i * .05, -.4 + i * .2); r.rotation.z = .9; rays.add(r); }
   // البلاستيدة الخضراء
   const chl = new THREE.Group(); root.add(chl);
-  const outer = mesh(new THREE.SphereGeometry(1.4, 36, 24), glass('#55b84a', .35, { side: 2 })); outer.scale.set(1.7, .85, 1); chl.add(outer);
-  const grana = []; const gM = mat('#1f7a28', { roughness: .4 });
+  const outer = mesh(wobble(new THREE.SphereGeometry(1.4, 56, 40), .04, 1.5), tissue('#5cb84a', { kind: 'pore', transparent: true, opacity: .4, depthWrite: false, side: 2, roughness: .3, bumpScale: .8 })); outer.scale.set(1.7, .85, 1); chl.add(outer);
+  const grana = []; const gM = tissue('#1f7a28', { kind: 'pore', bumpScale: 1, roughness: .4 });
   for (let k = 0; k < 7; k++) { const g = new THREE.Group(); const n = 3 + (k % 3); for (let j = 0; j < n; j++) g.add(mesh(new THREE.CylinderGeometry(.26, .26, .07, 20), gM, [0, j * .09, 0])); g.position.set(-1.6 + k * .55, -.25 + (k % 2) * .2, (k % 3 - 1) * .35); chl.add(g); grana.push(...g.children); }
   // الميتوكندريا (للتنفس)
-  const mito = new THREE.Group(); const mb = mesh(new THREE.CapsuleGeometry(.5, 1.3, 8, 16), mat('#e8742c', { roughness: .45 })); mb.rotation.z = Math.PI / 2; mito.add(mb); for (let k = -3; k <= 3; k++) mito.add(mesh(new THREE.TorusGeometry(.3, .04, 6, 16, Math.PI), mat('#ffd1a6'), [k * .2, 0, .32])); mito.position.set(2.8, -1.7, 0); root.add(mito);
+  const mito = new THREE.Group(); const mb = mesh(wobble(new THREE.CapsuleGeometry(.5, 1.3, 16, 32), .05, 2), tissue('#e0703a', { kind: 'pore', bumpScale: 1.2 })); mb.rotation.z = Math.PI / 2; mito.add(mb); for (let k = -3; k <= 3; k++) mito.add(mesh(new THREE.TorusGeometry(.3, .04, 6, 16, Math.PI), mat('#ffd1a6'), [k * .2, 0, .32])); mito.position.set(2.8, -1.7, 0); root.add(mito);
   const co2 = new Flow(root, '#9a9a9a', .07, 40), h2o = new Flow(root, '#3c8de0', .07, 40), o2 = new Flow(root, '#bfe8ff', .07, 40), glu = new Flow(root, '#f2c11a', .09, 30);
   const P = { co2: curve([[-3.5, -1.6, .6], [-2.4, -.8, .5], [-1.2, -.2, .3]]), h2o: curve([[-1, -2.6, 0], [-.6, -1.5, .2], [-.2, -.3, .2]]), o2: curve([[.6, .4, .3], [1.6, 1.4, .3], [3, 2.3, .3]]), glu: curve([[1, -.2, .2], [2, -.9, .1], [2.7, -1.5, 0]]) };
   const R = { o2: curve([[3.6, .2, .3], [3.3, -.8, .3], [2.9, -1.5, 0]]), glu: curve([[1, -.2, .2], [2, -.9, .1], [2.7, -1.5, 0]]), co2: curve([[3, -1.8, .2], [3.6, -2.4, .4], [4.3, -2.6, .5]]), h2o: curve([[2.6, -1.9, -.2], [2.2, -2.6, -.3], [1.6, -3, -.3]]) };
@@ -292,10 +294,10 @@ export function cellcycleModel(api) {
   const ringG = mesh(new THREE.TorusGeometry(2.6, .12, 10, 80, Math.PI * 1.45), mat('#2c4fa8'), [0, 0, 0], [0, 0, Math.PI * .28]); root.add(ringG);
   const ringD = mesh(new THREE.TorusGeometry(2.6, .12, 10, 40, Math.PI * .45), mat('#d9475a'), [0, 0, 0], [0, 0, -Math.PI * .2]); root.add(ringD);
   const head = mesh(new THREE.ConeGeometry(.28, .5, 16), mat('#2c4fa8'), [0, 0, 0]); root.add(head);
-  const cM = mat('#f29aa8', { roughness: .5 }), nM = mat('#b83a5a');
-  const cell = new THREE.Group(); const body = mesh(new THREE.SphereGeometry(.5, 24, 16), cM); const nuc = mesh(new THREE.SphereGeometry(.17, 16, 12), nM); cell.add(body, nuc); root.add(cell);
-  const twin = new THREE.Group(); const b2 = mesh(new THREE.SphereGeometry(.5, 24, 16), cM); const n2 = mesh(new THREE.SphereGeometry(.17, 16, 12), nM); twin.add(b2, n2); root.add(twin);
-  const ghosts = []; for (let i = 0; i < 9; i++) { const a = Math.PI * .5 - i / 9 * Math.PI * 2; const g = mesh(new THREE.SphereGeometry(.22 + (i % 3) * .05, 14, 10), mat('#f7c2cb', { transparent: true, opacity: .55 }), [Math.cos(a) * 1.5, Math.sin(a) * 1.5, -.2]); root.add(g); ghosts.push(g); }
+  const cM = tissue('#ec95a2', { kind: 'pore', bumpScale: 1.2, roughness: .4 }), nM = tissue('#9a2a4a', { kind: 'pore', bumpScale: 1.5 });
+  const cell = new THREE.Group(); const body = mesh(wobble(new THREE.SphereGeometry(.5, 40, 28), .22, 2.2), cM, null, null, [1, 1, .55]); const nuc = mesh(wobble(new THREE.SphereGeometry(.17, 24, 16), .08, 3), nM, [0, 0, .12]); cell.add(body, nuc); root.add(cell);
+  const twin = new THREE.Group(); const b2 = mesh(wobble(new THREE.SphereGeometry(.5, 40, 28), .22, 2.6), cM, null, null, [1, 1, .55]); const n2 = mesh(wobble(new THREE.SphereGeometry(.17, 24, 16), .08, 3), nM, [0, 0, .12]); twin.add(b2, n2); root.add(twin);
+  const ghosts = []; for (let i = 0; i < 9; i++) { const a = Math.PI * .5 - i / 9 * Math.PI * 2; const g = mesh(wobble(new THREE.SphereGeometry(.22 + (i % 3) * .05, 28, 20), .25, 2 + i * .3), tissue('#f2b0bb', { kind: 'pore', transparent: true, opacity: .7 }), [Math.cos(a) * 1.5, Math.sin(a) * 1.5, -.2]); root.add(g); ghosts.push(g); }
   const lG = txt('نموّ الخلية', .45, '#2c4fa8'); lG.position.set(.6, 3.2, 0); root.add(lG);
   const lD = txt('انقسام الخلية', .45, '#d9475a'); lD.position.set(.5, -3.2, 0); root.add(lD);
   const lP = txt('التهيّؤ للانقسام', .38, '#7a3a4a'); lP.position.set(.4, -.9, 0); root.add(lP);
@@ -330,9 +332,9 @@ export function cellcycleModel(api) {
 /* ═════════ ٦) الانقسام المتساوي (ص ٥٤–٥٥) ═════════ */
 export function mitosisModel(api) {
   const root = new THREE.Group(); let step = 0, plant = false, tStep = 1, prev = 0;
-  const cyto = mesh(new THREE.SphereGeometry(1.6, 40, 28), glass('#f2c4d0', .3, { side: 2 })); root.add(cyto);
+  const cyto = mesh(wobble(new THREE.SphereGeometry(1.6, 64, 44), .05, 1.2), tissue('#f0bccb', { kind: 'pore', transparent: true, opacity: .32, depthWrite: false, side: 2, roughness: .3, bumpScale: .8 })); root.add(cyto);
   const box = mesh(new THREE.BoxGeometry(3.4, 2.6, 2.6), glass('#bfe7a0', .25, { side: 2 })); root.add(box);
-  const env = mesh(new THREE.SphereGeometry(.85, 28, 20), glass('#9a5ac0', .35)); root.add(env);
+  const env = mesh(wobble(new THREE.SphereGeometry(.85, 40, 28), .05, 2), tissue('#a774c8', { kind: 'pore', transparent: true, opacity: .33, depthWrite: false, roughness: .3 })); root.add(env);
   const env2 = [mesh(new THREE.SphereGeometry(.6, 24, 16), glass('#9a5ac0', .35)), mesh(new THREE.SphereGeometry(.6, 24, 16), glass('#9a5ac0', .35))]; env2.forEach(e => root.add(e));
   const chroma = new THREE.Group(); root.add(chroma); for (let i = 0; i < 4; i++) chroma.add(tube([[-.5, (i - 1.5) * .2, .1], [-.1, (i - 1.5) * .25 + .2, -.2], [.3, (i - 1.5) * .2 - .1, .2], [.5, (i - 1.5) * .22, 0]], .025, mat(['#3a5bd9', '#3a5bd9', '#d93a6a', '#d93a6a'][i]), 20, 6));
   const cols = ['#3a5bd9', '#5a7be9', '#d93a6a', '#e95a8a'];
@@ -389,7 +391,7 @@ export function mitosisModel(api) {
 /* ═════════ ٧) الانقسام المنصّف (ص ٥٦) ═════════ */
 export function meiosisModel(api) {
   const root = new THREE.Group(); let step = 0;
-  const cellM = glass('#9fd47a', .35), cellG = new THREE.SphereGeometry(.75, 28, 20);
+  const cellM = tissue('#8fcf5a', { kind: 'pore', transparent: true, opacity: .55, depthWrite: false, bumpScale: 1, roughness: .3, transmission: .2 }), cellG = wobble(new THREE.SphereGeometry(.75, 48, 32), .06, 1.6);
   const stages = [];
   function cellAt(x, y, contents) { const g = new THREE.Group(); const c = mesh(cellG, cellM); g.add(c); contents.forEach(([col, dx, dy, rz, dup]) => { const k = chromo(col, .3, dup); k.position.set(dx, dy, .1); k.rotation.z = rz; k.scale.setScalar(.9); g.add(k); }); g.position.set(x, y, 0); return { g, c }; }
   const B = '#3a5bd9', R = '#d93a6a', B2 = '#7a9af0', R2 = '#f07a9a';
