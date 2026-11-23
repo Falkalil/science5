@@ -119,9 +119,9 @@ export function terrain({ w, d, nx = 120, nz = 80, h, color, bottom = -2, top = 
   const g = new THREE.Group();
   const geo = new THREE.PlaneGeometry(w, d, nx, nz); geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position, cols = new Float32Array(p.count * 3), col = new THREE.Color();
-  for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), y = h(x, z); p.setY(i, y); col.set(color(x, z, y)); cols.set([col.r, col.g, col.b], i * 3); }
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), y = h(x, z); p.setY(i, y); col.set(color(x, z, y)).multiplyScalar(.9 + (fbm3(x * 1.7, y * 1.7, z * 1.7) + 1) * .11); cols.set([col.r, col.g, col.b], i * 3); }
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3)); geo.computeVertexNormals();
-  const surf = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9, flatShading: false })); surf.receiveShadow = true; g.add(surf);
+  const surf = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .9, flatShading: false, sheen: .2, bumpMap: tissueBump('pore', 50), bumpScale: 2.2 })); surf.receiveShadow = true; g.add(surf);
   const sm = sideTex ? new THREE.MeshStandardMaterial({ map: sideTex, roughness: .95, side: THREE.DoubleSide }) : new THREE.MeshStandardMaterial({ color: sideColor, roughness: .95, side: THREE.DoubleSide });
   const edges = [[-w / 2, -d / 2, w / 2, -d / 2, nx], [w / 2, -d / 2, w / 2, d / 2, nz], [w / 2, d / 2, -w / 2, d / 2, nx], [-w / 2, d / 2, -w / 2, -d / 2, nz]];
   edges.forEach(([x0, z0, x1, z1, n], k) => {

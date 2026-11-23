@@ -624,10 +624,10 @@ export function fossilModel(api) {
 export function treatmentModel(api) {
   const root = new THREE.Group();
   const lakeG = new THREE.Group(); lakeG.position.set(4.2, 2.2, -1.2); root.add(lakeG);
-  lakeG.add(mesh(new THREE.CylinderGeometry(1.4, 1.1, .6, 40), mat('#7a5a3a'), [0, -.3, 0]));
-  lakeG.add(mesh(new THREE.CircleGeometry(1.3, 40), mat('#5a8a6a', { roughness: .2 }), [0, .01, 0], [-Math.PI / 2, 0, 0]));
+  lakeG.add(mesh(organGeo(1, v => { v.y = Math.max(-1, Math.min(0, v.y)) * .6 + .3 * (v.y > 0 ? 0 : 0); v.x *= 1.4; v.z *= 1.4; v.multiplyScalar(1 + fbm3(v.x * 2, v.y * 2, v.z * 2) * .08); }, 48, 24), mat('#7a5a3a', { bumpMap: tissueBump('pore', 45), bumpScale: 4, roughness: .95 }), [0, -.02, 0]));
+  lakeG.add(mesh(new THREE.CircleGeometry(1.3, 48), new THREE.MeshPhysicalMaterial({ color: '#3f7f86', roughness: .04, clearcoat: 1, clearcoatRoughness: .02, bumpMap: tissueBump('vein', 46), bumpScale: .4 }), [0, .01, 0], [-Math.PI / 2, 0, 0]));
   for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI; const p = pine(.45, '#3f7a3a'); p.position.set(Math.cos(a + Math.PI) * 1.25, 0, -Math.sin(a) * 1.0); lakeG.add(p); }
-  const pipeM = mat('#8a7a6a', { metalness: .4, roughness: .4 });
+  const pipeM = mat('#9aa0a6', { metalness: .85, roughness: .28, clearcoat: .6 });
   const path = [V(4.2, 2.0, -.1), V(4.0, 1.5, .4), V(3.1, 1.6, .6), V(2.2, 1.55, .8), V(1.3, 1.1, 1.0), V(.3, .6, 1.4), V(-.6, .4, 1.8), V(-1.6, .1, 2.0), V(-3.2, .1, 2.0), V(-4.4, .4, 1.8)];
   root.add(tube(path.map(p => p.clone().add(V(0, -.18, 0))), .08, pipeM, 120, 10));
   const screens = new THREE.Group(); screens.position.set(2.6, 1.7, .7); root.add(screens);
@@ -642,9 +642,9 @@ export function treatmentModel(api) {
   const chl = new THREE.Group(); chl.position.set(-1.8, -.1, 2.6); root.add(chl); chl.add(mesh(new THREE.CylinderGeometry(.35, .35, .6, 24), mat('#b8b8bc', { metalness: .5 }))); for (let k = 0; k < 3; k++) chl.add(mesh(new THREE.TorusGeometry(.355, .02, 6, 30), mat('#888'), [0, -.2 + k * .2, 0], [Math.PI / 2, 0, 0]));
   const store = tank(1.1, .7, [-4.6, .45, 1.8], '#4ab8e0');
   const tap = new THREE.Group(); tap.position.set(-5.9, .55, 1.8); root.add(tap); tap.add(mesh(new THREE.CylinderGeometry(.05, .05, .5, 8), mat('#444'), [0, -.15, 0]), mesh(new THREE.CylinderGeometry(.05, .05, .4, 8), mat('#444'), [.15, .1, 0], [0, 0, Math.PI / 2]));
-  const basePlate = mesh(new THREE.BoxGeometry(12.5, .1, 6), mat('#cfe6f0'), [-.6, -.45, .6]); root.add(basePlate);
+  const basePlate = mesh(new THREE.BoxGeometry(12.5, .1, 6), mat('#c9c4b8', { bumpMap: tissueBump('pore', 47), bumpScale: 2.5, roughness: .9 }), [-.6, -.45, .6]); root.add(basePlate);
   const water = new Flow(root, '#7a6a3a', .07, 220); water.rate = 9; const wc = curve(path); water.addPath(wc, .07);
-  const debris = []; for (let i = 0; i < 10; i++) { const d = mesh(new THREE.BoxGeometry(.09, .09, .09), mat(['#e0a03a', '#c83a3a', '#8a6a3a', '#e8e8e8'][i % 4]), [2.6 + (Math.random() - .5) * 1, 1.8, .7 + (Math.random() - .5) * .4]); d.visible = false; root.add(d); debris.push(d); }
+  const debris = []; for (let i = 0; i < 10; i++) { const d = mesh(i % 2 ? organGeo(.06, v => { v.y *= .15; v.x *= 1.6; }, 12, 8) : new THREE.CylinderGeometry(.03, .035, .14, 12), mat(['#e0a03a', '#c83a3a', '#8a6a3a', '#e8e8e8'][i % 4], { side: 2 }), [2.6 + (Math.random() - .5) * 1, 1.8, .7 + (Math.random() - .5) * .4]); d.visible = false; root.add(d); debris.push(d); }
   const bugs = []; for (let i = 0; i < 14; i++) { const b = mesh(new THREE.CapsuleGeometry(.025, .07, 3, 6), mat('#3aaa3a', { emissive: '#1a8a1a', emissiveIntensity: .6 })); b.visible = false; root.add(b); bugs.push({ m: b, t: Math.random() }); }
   const on = { screen: true, coag: true, sed: true, filt: true, dis: true };
   const stageT = { screen: .27, coag: .4, sed: .53, filt: .64, dis: .77 };
