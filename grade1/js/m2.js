@@ -1,5 +1,5 @@
 // مجسّمات الصف الثاني
-import { THREE, mat, glass, mesh, tube, anchor, V, Flow, lerp, clamp, noiseTexture, tree, pine, cloud, arrowTube, deer } from './kit.js';
+import { THREE, mat, glass, mesh, tube, anchor, V, Flow, lerp, clamp, noiseTexture, tree, pine, cloud, arrowTube, deer, organGeo, fbm3, tissue, tissueBump, vessel, twigs, mergeGeos, creature } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 import { node } from './m4a.js';
 const TAU = Math.PI * 2;
@@ -277,6 +277,7 @@ export function polarModel(api) {
 }
 
 /* ═════════ ٧) الغابة والغابة المطيرة (ص ١٠٦–١٠٧) ═════════ */
+let _barkM = null;
 export function forestModel(api, variant = 0) {
   const root = new THREE.Group(); let t = 0, night = false, autumn = false, rainOn = true, filt = 0;
   root.add(disk(4.3, variant ? '#4f8a32' : '#7cb04a', variant ? '#3a7024' : '#5e9438'));
@@ -285,10 +286,10 @@ export function forestModel(api, variant = 0) {
   spots.forEach(([x, z, s], i) => {
     const g = new THREE.Group(); g.position.set(x, -.45, z); trees.add(g);
     const H = variant ? 4.2 * s : 2.4 * s;
-    g.add(mesh(new THREE.CylinderGeometry(.12 * s, .2 * s, H, 10), mat('#6a4a2c', { map: noiseTexture('#7a5634', '#5a3a20', 900) }), [0, H / 2, 0]));
-    const lm = mat(variant ? '#2f8a2a' : '#3f8f32', { flatShading: true }); leafMs.push(lm);
-    if (variant) { for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; const l = mesh(new THREE.SphereGeometry(.7 * s, 16, 8), lm, [Math.cos(a) * .6 * s, H + .1, Math.sin(a) * .6 * s]); l.scale.y = .35; g.add(l); } }
-    else for (const [dx, dy, dz, r] of [[0, H + .3, 0, .8], [-.45, H, .2, .55], [.45, H, -.15, .55]]) g.add(mesh(new THREE.IcosahedronGeometry(r * s, 1), lm, [dx * s, dy, dz * s]));
+    g.add(vessel([[0, 0, 0], [.04 * s, H * .45, 0], [-.03 * s, H * .9, .02], [0, H + .2, 0]], .2 * s, .07 * s, _barkM || (_barkM = tissue('#6a4a2c', { kind: 'vein', bumpScale: 3, roughness: .9, clearcoat: 0, sheen: .1 })), 30, 12, .05)); { const tw = []; for (let k = 0; k < 3; k++) twigs(tw, V(0, H * (.7 + k * .1), 0), V(Math.cos(k * 2.1 + i), .9, Math.sin(k * 2.1 + i)), .5 * s, .05 * s, 2, .8); g.add(new THREE.Mesh(mergeGeos(tw), _barkM)); }
+    const lm = new THREE.MeshPhysicalMaterial({ color: variant ? '#2f8a2a' : '#3f8f32', roughness: .75, sheen: .7, sheenColor: new THREE.Color('#e0f0b0'), bumpMap: tissueBump('pore', 4), bumpScale: 4 }); leafMs.push(lm);
+    if (variant) { for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; const l = mesh(organGeo(.7 * s, v => v.multiplyScalar(1 + fbm3(v.x * 3 + k, v.y * 3, v.z * 3) * .3), 32, 22), lm, [Math.cos(a) * .6 * s, H + .1, Math.sin(a) * .6 * s]); l.scale.y = .45; g.add(l); } }
+    else for (const [dx, dy, dz, r] of [[0, H + .3, 0, .8], [-.45, H, .2, .55], [.45, H, -.15, .55]]) g.add(mesh(organGeo(r * s, v => v.multiplyScalar(1 + fbm3(v.x * 2.5 + dx * 3, v.y * 2.5, v.z * 2.5) * .3), 32, 22), lm, [dx * s, dy, dz * s]));
   });
   // أوراق متساقطة في الخريف
   const fallen = new THREE.Group(); root.add(fallen); for (let k = 0; k < 40; k++) { const l = mesh(new THREE.CircleGeometry(.06, 6), mat(k % 2 ? '#e0782a' : '#d8a82a', { side: THREE.DoubleSide }), [(Math.random() - .5) * 7, 2 + Math.random() * 1.5, -2 + Math.random() * 3]); fallen.add(l); } fallen.visible = false;
@@ -306,7 +307,7 @@ export function forestModel(api, variant = 0) {
     { id: 'tiger', e: '🐅', n: 'النمر', p: [.6, .1, 1.2], info: 'يعيشُ النمرُ على الأرضِ ويبحثُ عن غذائه عليها.', top: 0 },
     { id: 'ant', e: '🐜', n: 'الحشرات وآكلات النمل', p: [-1.4, -.1, 1.4], info: 'تعيشُ آكلاتُ النملِ على أرضِ الغابة، وتتغذّى على النملِ والحشرات.', top: 0 }
   ];
-  const N = A.map(a => { if (!a.e) { const d = deer(1.1, '#b07a42'); d.position.set(...a.p); root.add(d); for (let k = 0; k < 10; k++) d.add(mesh(new THREE.SphereGeometry(.035, 6, 4), mat('#f6ecd8'), [(k % 5) * .1 - .2, .7, (k < 5 ? 1 : -1) * .16])); const p = new THREE.Mesh(new THREE.SphereGeometry(.55, 12, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); p.position.y = .6; d.add(p); return { a, nd: { g: d, p } }; } return { a, nd: node(root, a.e, a.p, .8, null) }; });
+  const N = A.map(a => { if (!a.e) { const d = deer(1.1, '#b07a42'); d.position.set(...a.p); root.add(d); for (let k = 0; k < 10; k++) d.add(mesh(new THREE.SphereGeometry(.03, 8, 6), mat('#f6ecd8'), [(k % 5) * .09 - .22, .62 + (k % 2) * .05, (k < 5 ? 1 : -1) * .13])); const p = new THREE.Mesh(new THREE.SphereGeometry(.55, 12, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); p.position.y = .6; d.add(p); return { a, nd: { g: d, p } }; } return { a, nd: node(root, a.e, a.p, .8, null) }; });
   const rain = fall(root, 80, '#9fd0ff', .03, [-4, 4, -.4, 6, -3, 3], 5); rain.g.visible = !!variant;
   const tl = txt(variant ? 'الغابةُ المطيرة: أمطارٌ كلَّ يومٍ تقريبًا' : 'الغابة: تتوافرُ فيها الأمطارُ وضوءُ الشمس', .28, '#1a4a2a'); tl.position.set(0, variant ? 6.4 : 4, 0); root.add(tl);
   function apply() {

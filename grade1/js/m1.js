@@ -1,5 +1,5 @@
 // مجسّمات الصف الأول
-import { THREE, mat, glass, mesh, tube, anchor, V, noiseTexture, tree, cloud, arrowTube } from './kit.js';
+import { THREE, mat, glass, mesh, tube, anchor, V, noiseTexture, tree, cloud, arrowTube, organGeo, fbm3, tissue, tissueBump, vessel, twigs, mergeGeos, creature } from './kit.js';
 import { txt, setTxt } from './models6a.js';
 import { node } from './m4a.js';
 const TAU = Math.PI * 2;
@@ -64,11 +64,12 @@ export function fishModel(api) {
   const water = mesh(new THREE.SphereGeometry(2.3, 48, 32, 0, TAU, Math.PI * .38, Math.PI * .62), new THREE.MeshPhysicalMaterial({ color: '#5ab0e8', transparent: true, opacity: .35, roughness: .1, depthWrite: false }), [0, .4, 0]); root.add(water);
   for (let k = 0; k < 40; k++) { const a = k * 2.4, r = (k % 7) * .25; root.add(mesh(new THREE.SphereGeometry(.12, 8, 6), mat(['#3a6ad0', '#2aa0c0', '#e0e0e0'][k % 3]), [Math.cos(a) * r, -1.62, Math.sin(a) * r])); }
   const fish = new THREE.Group(); root.add(fish);
-  const om = mat('#ff8a1a', { roughness: .35, emissive: '#000' });
-  const body = mesh(new THREE.SphereGeometry(.7, 32, 20), om); body.scale.set(1.25, .85, .55); fish.add(body);
-  const scales = new THREE.Group(); fish.add(scales); for (let k = 0; k < 30; k++) { const x = -.6 + (k % 6) * .22, y = -.3 + Math.floor(k / 6) * .15; const s = mesh(new THREE.SphereGeometry(.07, 8, 6), mat('#ffb04a', { roughness: .3 })); s.scale.z = .3; s.position.set(x, y, .36 * Math.sqrt(Math.max(0, 1 - (x / .9) ** 2 - (y / .6) ** 2)) + .02); scales.add(s); }
-  const finM = mat('#ffb85a', { side: THREE.DoubleSide, transparent: true, opacity: .85 });
-  const tail = new THREE.Group(); tail.position.x = -.85; fish.add(tail); const tg = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(-.8, .6), new THREE.Vector2(-.6, 0), new THREE.Vector2(-.8, -.6)])); tail.add(new THREE.Mesh(tg, finM));
+  const om = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .25, clearcoat: 1, clearcoatRoughness: .15, sheen: .6, sheenColor: new THREE.Color('#fff0a0'), iridescence: .3, bumpMap: tissueBump('pore', 31), bumpScale: .8, emissive: '#000' });
+  const bg = organGeo(.7, v => { if (v.x < 0) { const k = 1 + v.x / .7 * .45; v.y *= k; v.z *= k; } v.y *= 1 + Math.max(0, v.y) * .25; }, 64, 48); { const P = bg.attributes.position, col = new Float32Array(P.count * 3), c = new THREE.Color(); for (let i = 0; i < P.count; i++) { const y = P.getY(i), x = P.getX(i); c.set('#ff7a10').lerp(new THREE.Color('#ffd040'), THREE.MathUtils.smoothstep(-y, -.1, .5)).lerp(new THREE.Color('#ff5a00'), THREE.MathUtils.smoothstep(y, .3, .6) * .5); col.set([c.r, c.g, c.b], i * 3); } bg.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+  const body = mesh(bg, om); body.scale.set(1.25, .85, .55); fish.add(body);
+  const scales = new THREE.Group(); fish.add(scales); for (let k = 0; k < 30; k++) { const x = -.6 + (k % 6) * .22, y = -.3 + Math.floor(k / 6) * .15; const s = mesh(new THREE.SphereGeometry(.07, 12, 8), new THREE.MeshPhysicalMaterial({ color: '#ffd070', roughness: .15, clearcoat: 1, transparent: true, opacity: .35, iridescence: .5 })); s.scale.z = .3; s.position.set(x, y, .36 * Math.sqrt(Math.max(0, 1 - (x / .9) ** 2 - (y / .6) ** 2)) + .02); scales.add(s); }
+  const finM = new THREE.MeshPhysicalMaterial({ color: '#ffa040', side: THREE.DoubleSide, transparent: true, opacity: .72, roughness: .3, sheen: 1, sheenColor: new THREE.Color('#fff0c0'), bumpMap: tissueBump('vein', 32), bumpScale: .7, depthWrite: false });
+  const tail = new THREE.Group(); tail.position.x = -.85; fish.add(tail); const tsh = new THREE.Shape(); tsh.moveTo(0, .05); tsh.bezierCurveTo(-.4, .3, -.9, .85, -1.2, .7); tsh.bezierCurveTo(-1.0, .4, -.85, .15, -.95, 0); tsh.bezierCurveTo(-.85, -.15, -1.0, -.4, -1.2, -.7); tsh.bezierCurveTo(-.9, -.85, -.4, -.3, 0, -.05); const tg = new THREE.ShapeGeometry(tsh, 24); { const P = tg.attributes.position; for (let i = 0; i < P.count; i++) P.setZ(i, Math.sin(P.getY(i) * 6) * .04 * -P.getX(i)); tg.computeVertexNormals(); } tail.add(new THREE.Mesh(tg, finM));
   const dorsal = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-.4, 0), new THREE.Vector2(0, .55), new THREE.Vector2(.35, 0)])), finM); dorsal.position.set(0, .5, 0); fish.add(dorsal);
   const side = new THREE.Group(); side.position.set(.2, -.2, .32); fish.add(side); const sideFin = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(-.45, -.25), new THREE.Vector2(-.35, .05)])), finM); side.add(sideFin);
   const bottom = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-.3, 0), new THREE.Vector2(-.05, -.4), new THREE.Vector2(.2, 0)])), finM); bottom.position.set(-.2, -.5, 0); fish.add(bottom);

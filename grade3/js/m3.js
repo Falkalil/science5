@@ -1,5 +1,5 @@
 // مجسّمات الصف الثالث
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, noiseTexture, tree, cloud, arrowTube, house } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, noiseTexture, tree, cloud, arrowTube, house, organGeo, fbm3, tissue, tissueBump, vessel, twigs, mergeGeos, creature } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 import { node } from './m4a.js';
 const TAU = Math.PI * 2;
@@ -113,17 +113,17 @@ export function plantpartsModel(api) {
 /* ═════════ ٤) من البذرة إلى النبتة (ص ٥٤–٥٥) ═════════ */
 export function seedModel(api) {
   const root = new THREE.Group(); let stage = 0, t = 0, cut = false;
-  const soil = mesh(new THREE.BoxGeometry(4, 2.2, 2.4), mat('#fff', { map: noiseTexture('#4a2f1c', '#2e1c10', 3000), transparent: true, opacity: .3, depthWrite: false }), [0, -1.4, 0]); root.add(soil);
+  const soil = mesh(new THREE.BoxGeometry(4, 2.2, 2.4), mat('#fff', { map: noiseTexture('#5a3a22', '#2e1c10', 3000), transparent: true, opacity: .42, depthWrite: false, bump: false }), [0, -1.4, 0]); root.add(soil);
   const seed = new THREE.Group(); seed.position.set(0, -.8, 0); root.add(seed);
-  const coat = mesh(new THREE.SphereGeometry(.42, 24, 16, 0, TAU), mat('#9a6aa0', { roughness: .4, transparent: true, opacity: 1 })); coat.scale.set(1.3, .9, .9); seed.add(coat);
+  const coat = mesh(organGeo(.42, v => { if (v.y < 0) v.y *= 1 - .45 * Math.exp(-Math.pow(v.x / .14, 2)); v.y += v.x * v.x * .35; }, 48, 32), new THREE.MeshPhysicalMaterial({ color: '#a8362a', roughness: .25, clearcoat: 1, clearcoatRoughness: .1, transparent: true, opacity: 1, bumpMap: tissueBump('pore', 33), bumpScale: .4 })); coat.scale.set(1.3, .9, .9); seed.add(coat);
   const food = mesh(new THREE.SphereGeometry(.38, 24, 16), mat('#d8e8a0')); food.scale.set(1.25, .85, .85); seed.add(food);
   const embryo = mesh(new THREE.SphereGeometry(.1, 12, 8), mat('#f2e08a', { emissive: '#d0b030', emissiveIntensity: .3 }), [.38, .05, .15]); seed.add(embryo);
   const radicle = tube([[0, -.85, 0], [0, -1.4, 0], [.05, -2, 0]], .045, mat('#f2ecd0'), 20, 8); root.add(radicle);
   const rootsMore = new THREE.Group(); root.add(rootsMore); for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; rootsMore.add(tube([[0, -1.3, 0], [Math.cos(a) * .4, -1.7, Math.sin(a) * .3], [Math.cos(a) * .7, -2.3, Math.sin(a) * .5]], .018, mat('#e8dcb8'), 12, 4)); }
   const shoot = tube([[0, -.75, 0], [0, -.2, 0], [0, .5, 0], [0, 1.2, 0]], .05, mat('#c8e070'), 24, 8); root.add(shoot);
-  const leaves = new THREE.Group(); leaves.position.set(0, 1.2, 0); root.add(leaves); const lg = new THREE.SphereGeometry(.3, 14, 8); lg.scale(1.5, .12, .8);
-  [[.35, 0, .3], [-.35, 0, -.3]].forEach(([x, y, r]) => { const l = new THREE.Mesh(lg, mat('#5aa83a', { side: 2 })); l.position.set(x, y, 0); l.rotation.z = r; leaves.add(l); });
-  const big = new THREE.Group(); root.add(big); for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(lg, mat('#3f8f32', { side: 2 })); l.position.set((i % 2 ? .45 : -.45), 1.5 + i * .3, 0); l.rotation.z = i % 2 ? .3 : -.3; big.add(l); }
+  const leaves = new THREE.Group(); leaves.position.set(0, 1.2, 0); root.add(leaves); const lg = organGeo(.3, v => { const t = (v.x / .3 + 1) / 2; v.x *= 1.5; v.y *= .06; v.z *= .8 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.05 + .02)), .8); v.y += v.x * v.x * .25; }, 32, 20);
+  [[.35, 0, .3], [-.35, 0, -.3]].forEach(([x, y, r]) => { const l = new THREE.Mesh(lg, mat('#5aa83a', { side: 2, bumpMap: tissueBump('vein', 34), bumpScale: 2 })); l.position.set(x, y, 0); l.rotation.z = r; leaves.add(l); });
+  const big = new THREE.Group(); root.add(big); for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(lg, mat('#3f8f32', { side: 2, bumpMap: tissueBump('vein', 34), bumpScale: 2 })); l.position.set((i % 2 ? .45 : -.45), 1.5 + i * .3, 0); l.rotation.z = i % 2 ? .3 : -.3; big.add(l); }
   const pods = new THREE.Group(); root.add(pods); for (let i = 0; i < 3; i++) { const p = mesh(new THREE.CapsuleGeometry(.07, .5, 6, 10), mat('#6ab04a'), [(i - 1) * .35, 1.8 + i * .2, .2], [0, 0, .4 * (i - 1)]); pods.add(p); }
   const lab = txt('', .3, '#333'); lab.position.set(0, 3.1, 0); root.add(lab);
   const ST = ['١- تُزرعُ البذرةُ في التربة', '٢- تمتصُّ الماءَ وتنتفخُ ويبدأُ الجذرُ في النموِّ إلى أسفل', '٣- تطولُ الجذورُ وتندفعُ الساقُ عاليًا فوقَ الأرض', '٤- تنمو الأوراقُ وتبدأُ في صنعِ الغذاء', '٥- يكبرُ النباتُ ويصبحُ قادرًا على إنتاجِ بذورٍ جديدة'];

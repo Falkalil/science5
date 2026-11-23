@@ -163,7 +163,7 @@ export function arrowTube(points, r, color, headLen = .35) {
   g.userData.curve = c; return g;
 }
 export function house(s = 1) { const g = new THREE.Group(); g.add(mesh(new THREE.BoxGeometry(1, .7, .8), mat('#f2efe6'), [0, .35, 0])); const roof = mesh(new THREE.ConeGeometry(.82, .45, 4), mat('#2f7f8a'), [0, .92, 0], [0, Math.PI / 4, 0]); roof.scale.set(1, 1, .85); g.add(roof); g.add(mesh(new THREE.BoxGeometry(.14, .4, .14), mat('#9a5b3a'), [.28, 1.05, 0])); g.add(mesh(new THREE.BoxGeometry(.22, .3, .02), mat('#7a4a2a'), [0, .15, .41])); for (const x of [-.3, .3]) g.add(mesh(new THREE.BoxGeometry(.18, .16, .02), mat('#8ec5e8'), [x, .45, .41])); g.scale.setScalar(s); g.userData.chimney = V(.28 * s, 1.25 * s, 0); return g; }
-export function deer(s = 1, c = '#9a6a3d') { const g = new THREE.Group(); const m = mat(c); g.add(mesh(new THREE.CapsuleGeometry(.16, .45, 4, 10), m, [0, .55, 0], [0, 0, Math.PI / 2])); for (const [x, z] of [[-.2, -.08], [-.2, .08], [.2, -.08], [.2, .08]]) g.add(mesh(new THREE.CylinderGeometry(.03, .025, .45, 6), m, [x, .22, z])); g.add(mesh(new THREE.CylinderGeometry(.05, .07, .3, 8), m, [.3, .8, 0], [0, 0, -.6])); g.add(mesh(new THREE.SphereGeometry(.09, 10, 8), m, [.42, .95, 0], null, [1.4, 1, 1])); g.scale.setScalar(s); return g; }
+export function deer(s = 1, c = '#9a6a3d') { const g = new THREE.Group(); const d = creature('🦌', 1.15 * s); d.rotation.y = 0; g.add(d); d.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(d); d.position.y = -b.min.y; return g; }
 
 /* ═════════ أدواتُ المجسّماتِ الواقعيّة ═════════ */
 const _h3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
