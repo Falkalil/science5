@@ -64,7 +64,7 @@ export function compareHeartModel(api) {
     { id: 'animals', name: 'الأرنب والسمكة', info: 'كلاهما من الفقاريّات، ولكلٍّ منهما قلبٌ وأوعيةٌ دمويّةٌ ودم. يختلفانِ في عضوِ التنفّس: رئتانِ للأرنب، وخياشيمُ للسمكة.', objs: [rab, fish], at: anchor(root, [0, 2.4, -.4]) }];
   const pose = { pos: [0, 1.25, 7.6], target: [0, 1.15, 0] };
   return {
-    root, parts, pageBox: [-3.8, -.65, -.9, 3.8, 3.1, .7], cam: pose, inpage: pose,
+    root, parts, pageBox: [-3.8, -.65, -.9, 3.8, 3.1, .7], cam: pose, inpage: pose, fitPop: .9,
     update(dt) { beat += dt * rate * 1.3; const ph = beat % 1, p = Math.exp(-Math.pow((ph - .1) / .06, 2)) * .07; rHeart.scale.setScalar(1 + p); fHeart.scale.setScalar(1 + p * .8); gills.rotation.y = Math.sin(beat * 1.2) * .05;
       [rA1, rA2, fA1, fA2].forEach(a => a.update(dt, .35 * rate)); },
     controls: [
@@ -91,7 +91,7 @@ export function frogLegModel(api) {
   const boneM = tissue('#efe2bf', { kind: 'pore', bumpScale: .3, roughness: .5, clearcoat: .3 }), musM = () => tissue('#d42a24', { kind: 'vein', bumpScale: .9, roughness: .4 }), tenM = tissue('#f2ecd8', { kind: 'vein', bumpScale: .8, roughness: .3 });
   // ورقةُ زنبقِ الماء
   const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, .04, 64, 1, false, .25, Math.PI * 2 - .5), new THREE.MeshPhysicalMaterial({ color: '#4f9a3a', roughness: .35, clearcoat: .8, bumpMap: tissueBump('vein', 8), bumpScale: 2 })); pad.position.set(.2, -1.55, 0); pad.receiveShadow = true; root.add(pad);
-  const water = new THREE.Mesh(new THREE.CircleGeometry(3.2, 64), new THREE.MeshPhysicalMaterial({ color: '#8ec8d8', roughness: .1, transmission: .2, transparent: true, opacity: .55 })); water.rotation.x = -Math.PI / 2; water.position.y = -1.58; root.add(water);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(2.0, 64), new THREE.MeshPhysicalMaterial({ color: '#8ec8d8', roughness: .1, transmission: .2, transparent: true, opacity: .55 })); water.rotation.x = -Math.PI / 2; water.position.y = -1.58; root.add(water);
   // الجسم
   const frog = new THREE.Group(); root.add(frog);
   const body = new THREE.Mesh(paint(organGeo(.5, v => { v.x *= 1.5; v.y *= .7; v.z *= .9; if (v.x > 0) { v.y *= 1 - v.x * .35; v.z *= 1 - v.x * .25; } v.multiplyScalar(1 + fbm3(v.x * 3, v.y * 3, v.z * 3) * .04); }, 72, 54), skinCol), skinM); frog.add(body);
@@ -131,7 +131,7 @@ export function frogLegModel(api) {
     { id: 'frog', name: 'الضفدع', info: 'يستعملُ الضفدعُ عضلاتِ رجليه الخلفيّتينِ القويّتينِ ليقفز، وتعملُ العضلاتُ معَ الهيكلِ العظميِّ لتحريكِ الجسم.', objs: [body], at: anchor(frog, [.2, .45, .2]) }];
   const cam = { pos: [-.4, -.1, 6.2], target: [-.4, -.35, 0] };
   return {
-    root, parts, pageBox: [-2.2, -1.6, -1, 1.6, 1.3, 1], cam, inpage: cam,
+    root, parts, pageBox: [-2.2, -1.6, -1, 1.6, 1.3, 1], cam, inpage: cam, fitPop: .78,
     update(dt) { if (jump >= 0) { jump += dt * .7; const ph = jump; t = ph < .35 ? .55 * (1 - ph / .35) : ph < .55 ? (ph - .35) / .2 : ph < 1 ? 1 - (ph - .55) / .45 * .45 : .55; if (ph >= 1) { jump = -1; t = .55; } target = t; } else t += (target - t) * Math.min(1, dt * 6); pose(t); shadow.scale.setScalar(1 - t * .3); },
     controls: [
       { type: 'steps', value: -1, steps: [
