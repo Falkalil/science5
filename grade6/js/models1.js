@@ -216,11 +216,11 @@ export function stemModel(api) {
   // ── مقطع الساق اللينة
   const H = 0.55;
   const softSec = new THREE.Group(); soft.add(softSec); softSec.rotation.x = 1.15;
-  const mGreen = mat('#5ca93a', { roughness: .6 }), mInner = mat('#fff', { map: cellTexture('#f6e27a', '#d9b84a', 14, 14, .3) });
+  const mGreen = tissue('#5ca93a', { kind: 'vein', bumpScale: 1.4, roughness: .6 }), mInner = mat('#fff', { map: cellTexture('#f6e27a', '#d9b84a', 14, 14, .3) });
   softSec.add(mesh(new THREE.CylinderGeometry(1.55, 1.55, H, 72, 1, true), mGreen));
   const ringG = new THREE.RingGeometry(1.42, 1.55, 72); const top1 = mesh(ringG, mat('#7cc44c', { side: 2 }), [0, H / 2 + .001, 0], [-Math.PI / 2, 0, 0]); softSec.add(top1);
   softSec.add(mesh(new THREE.CylinderGeometry(1.42, 1.42, H, 72), mInner));
-  const mX = mat('#e2412b', { roughness: .5 }), mP = mat('#f07a3a', { roughness: .5 }), mCam = mat('#3c9a34', { roughness: .5 });
+  const mX = tissue('#e2412b', { kind: 'vein', bumpScale: 1.4, roughness: .5 }), mP = tissue('#f07a3a', { kind: 'vein', bumpScale: 1.4, roughness: .5 }), mCam = tissue('#3c9a34', { kind: 'vein', bumpScale: 1.4, roughness: .5 });
   const sx = [], sp = [];
   for (let i = 0; i < 10; i++) {
     const a = i / 10 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
@@ -231,7 +231,7 @@ export function stemModel(api) {
   const camRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.035, 8, 120), mCam); camRing.rotation.x = Math.PI / 2; camRing.position.y = H / 2 + .02; softSec.add(camRing);
   const dots = new THREE.Group(); softSec.add(dots); // نقاط الكامبيوم المتقطعة
   // ساق لينة طويلة (يمكن ثنيها)
-  const softStemM = mat('#a6d86a', { roughness: .45 });
+  const softStemM = tissue('#a6d86a', { kind: 'vein', bumpScale: 1.4, roughness: .45 });
   let bend = 0; let softStem;
   function buildSoftStem() {
     if (softStem) soft.remove(softStem);
@@ -240,7 +240,7 @@ export function stemModel(api) {
   }
   // ── مقطع الساق الخشبية
   const woodSec = new THREE.Group(); woody.add(woodSec); woodSec.rotation.x = 1.15;
-  woodSec.add(mesh(new THREE.CylinderGeometry(1.6, 1.6, H, 72, 1, true), mat('#6b3a17', { roughness: .95 })));
+  woodSec.add(mesh(new THREE.CylinderGeometry(1.6, 1.6, H, 72, 1, true), tissue('#6b3a17', { kind: 'vein', bumpScale: 1.4, roughness: .95 })));
   woodSec.add(mesh(new THREE.RingGeometry(1.42, 1.6, 72), mat('#7a4520', { side: 2 }), [0, H / 2 + .001, 0], [-Math.PI / 2, 0, 0]));
   const xyTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.fillStyle = '#f2a23c'; g.fillRect(0, 0, 512, 512); for (let r = 20; r < 230; r += 14) { g.strokeStyle = r % 28 ? '#e08a2a' : '#f7c25d'; g.lineWidth = 6; g.beginPath(); g.arc(256, 256, r, 0, 7); g.stroke(); } for (let i = 0; i < 60; i++) { const a = i / 60 * 7; g.strokeStyle = '#d9792055'; g.lineWidth = 2; g.beginPath(); g.moveTo(256, 256); g.lineTo(256 + Math.cos(a) * 240, 256 + Math.sin(a) * 240); g.stroke(); } const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const wX = mesh(new THREE.CylinderGeometry(1.12, 1.12, H + .01, 72), [mat('#e8912f'), mat('#fff', { map: xyTex }), mat('#e8912f')]); woodSec.add(wX);
@@ -311,21 +311,24 @@ export function leafModel(api) {
   setPeel(peel);
   // الطبقة العمادية: أعمدة
   const pal = new THREE.Group(); blk.add(pal);
-  const palM = mat('#3f9a35', { roughness: .5 }); const chlM = mat('#1f6d1f');
-  const colG = new THREE.CapsuleGeometry(0.11, 0.55, 4, 10);
-  for (let i = 0; i < 20; i++) for (let j = 0; j < 9; j++) { const c = mesh(colG, palM, [-W / 2 + .14 + i * (W - .28) / 19, 0.52, -D / 2 + .16 + j * (D - .32) / 8]); pal.add(c); }
+  const palM = tissue('#6cbf4a', { kind: 'pore', transparent: true, opacity: .8, roughness: .35, bumpScale: .8 }); const chlM = tissue('#1f6d1f', { kind: 'pore', bumpScale: .6 });
+  const colG = new THREE.CapsuleGeometry(0.11, 0.55, 8, 16); { const P = colG.attributes.position; for (let k = 0; k < P.count; k++) { const y = P.getY(k); P.setX(k, P.getX(k) * (1 + Math.sin(y * 9) * .06)); } colG.computeVertexNormals(); }
+  const chlI = new THREE.InstancedMesh(new THREE.SphereGeometry(.035, 10, 8).scale(1, 1.6, 1), chlM, 20 * 9 * 10); let ci = 0; const o3 = new THREE.Object3D();
+  for (let i = 0; i < 20; i++) for (let j = 0; j < 9; j++) { const cx = -W / 2 + .14 + i * (W - .28) / 19, cz = -D / 2 + .16 + j * (D - .32) / 8; const c = mesh(colG, palM, [cx, 0.52, cz], [0, 0, (srnd() - .5) * .08]); pal.add(c);
+    for (let k = 0; k < 10; k++) { const a = srnd() * 6.28; o3.position.set(cx + Math.cos(a) * .085, .52 + (srnd() - .5) * .6, cz + Math.sin(a) * .085); o3.rotation.set(0, a, (srnd() - .5) * .4); o3.updateMatrix(); chlI.setMatrixAt(ci++, o3.matrix); } }
+  pal.add(chlI);
   // الطبقة الإسفنجية: خلايا كروية
-  const spg = new THREE.Group(); blk.add(spg); const spM = mat('#77c25a', { roughness: .7 });
-  for (let i = 0; i < 160; i++) { const x = (Math.random() - .5) * (W - .3), z = (Math.random() - .5) * (D - .3); if (Math.abs(z) < .45) continue; spg.add(mesh(new THREE.SphereGeometry(0.13 + Math.random() * .07, 10, 8), spM, [x, -0.25 + (Math.random() - .5) * .55, z])); }
+  const spg = new THREE.Group(); blk.add(spg); const spM = tissue('#86c862', { kind: 'pore', roughness: .4, bumpScale: 1 });
+  for (let i = 0; i < 160; i++) { const x = (Math.random() - .5) * (W - .3), z = (Math.random() - .5) * (D - .3); if (Math.abs(z) < .45) continue; spg.add(mesh(organGeo(0.13 + Math.random() * .07, v => v.multiplyScalar(1 + fbm3(v.x * 18 + i, v.y * 18, v.z * 18) * .2), 16, 12), spM, [x, -0.25 + (Math.random() - .5) * .55, z])); }
   // العرق: حزمة على طول المكعب
   const vein = new THREE.Group(); blk.add(vein);
-  const xyM = mat('#a85b2c', { roughness: .5 }), phM = mat('#d98a4e', { roughness: .5 });
+  const xyM = tissue('#a85b2c', { kind: 'vein', bumpScale: 1.5 }), phM = tissue('#d98a4e', { kind: 'pore' });
   const xy = [], ph = [];
   for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2; const t = mesh(new THREE.CylinderGeometry(0.08, 0.08, W - .02, 12), k % 2 ? phM : xyM, [0, -0.2 + Math.sin(a) * .2, Math.cos(a) * .2], [0, 0, Math.PI / 2]); vein.add(t); (k < 4 ? xy : ph).push(t); }
   const sheath = mesh(new THREE.CylinderGeometry(0.42, 0.42, W - .02, 24, 1, true), glass('#9bd27b', .35, { side: 2 }), [0, -0.2, 0], [0, 0, Math.PI / 2]); vein.add(sheath);
   // البشرة السفلية مع الثغور
   const lower = mesh(new THREE.BoxGeometry(W, 0.2, D), mat('#fff', { map: cellTexture('#7dc35a', '#4f9a35', 16, 8, .15) }), [0, -0.85, 0]); blk.add(lower);
-  const guards = []; const gM = mat('#2d7f2a', { roughness: .4 });
+  const guards = []; const gM = tissue('#2d7f2a', { kind: 'pore', bumpScale: 1 });
   const stomaPos = [[-1.6, .55], [0.2, -.7], [1.6, .6]];
   for (const [x, z] of stomaPos) { const pair = []; for (const s of [-1, 1]) { const g = mesh(new THREE.TorusGeometry(0.16, 0.07, 10, 20, Math.PI), gM, [x, -0.97, z + s * 0.09], [Math.PI / 2, 0, s > 0 ? 0 : Math.PI]); g.scale.set(1, 1, .9); blk.add(g); pair.push(g); } guards.push(pair); }
   const holes = stomaPos.map(([x, z]) => { const h = mesh(new THREE.CircleGeometry(0.1, 20), mat('#0b2a0b'), [x, -0.955, z], [Math.PI / 2, 0, 0]); h.scale.set(1.4, 0.4, 1); blk.add(h); return h; });
