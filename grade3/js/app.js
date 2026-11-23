@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { realRenderer, realScene } from './kit.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BOOK, TOC, MODELS, toPdf, toPrinted } from './data.js';
 import * as M1 from './models1.js';
@@ -200,7 +201,7 @@ $('#zIn').onclick = () => { zl = Math.min(4, zl + .5); applyZoom(); }; $('#zOut'
   zs.addEventListener('dblclick', () => { zl = zl > 1 ? 1 : 2.2; applyZoom(); }); }
 
 /* ═════════ المجسّمات: البناء والعرض داخل الصفحة ═════════ */
-const rPage = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: false });
+const rPage = realRenderer(new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: false }));
 rPage.setPixelRatio(1); rPage.setSize(1024, 1024, false); rPage.setClearColor(0x000000, 0);
 const insts = {};
 function boxOf(root) { const b = new THREE.Box3(); root.updateMatrixWorld(true); root.traverseVisible(o => { if (o.isMesh && !o.userData.glow) { o.geometry.computeBoundingBox(); b.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)); } }); return b; }
@@ -214,7 +215,7 @@ function getInst(id) {
   if (insts[id]) return insts[id];
   const def = MODELS.find(m => m.id === id);
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x9a8060, 1.6));
+  realScene(scene); scene.add(new THREE.HemisphereLight(0xffffff, 0x9a8060, .75));
   const dl = new THREE.DirectionalLight(0xffffff, 1.9); dl.position.set(5, 9, 7); scene.add(dl);
   const dl2 = new THREE.DirectionalLight(0xfff0d8, .6); dl2.position.set(-6, 2, -4); scene.add(dl2);
   const inst = { id, def, scene, ctrlSetters: [], stepSetter: null, anims: [] };
@@ -258,7 +259,7 @@ function loop(now) {
 
 /* ═════════ المجسّم المرفوع إلى وسط الشاشة ═════════ */
 const v3 = $('#v3'), liftEl = $('#lift');
-const rLift = new THREE.WebGLRenderer({ antialias: true, alpha: true }); rLift.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); v3.prepend(rLift.domElement);
+const rLift = realRenderer(new THREE.WebGLRenderer({ antialias: true, alpha: true })); rLift.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); v3.prepend(rLift.domElement);
 const cam = new THREE.PerspectiveCamera(38, 1, .05, 300);
 const ctl = new OrbitControls(cam, rLift.domElement); ctl.enableDamping = true; ctl.dampingFactor = .08; ctl.enablePan = false; ctl.rotateSpeed = .8;
 let lifted = null, srcHot = null, camAnim = null, selected = null, labelsOn = true, quiz = null;

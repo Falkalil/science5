@@ -1,5 +1,5 @@
 // مجسّمات الصف السادس (١): الخلية والوراثة
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tissue, fbm3, vesselGeo } from './kit.js';
 
 /* ── أدوات ── */
 function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
@@ -37,37 +37,39 @@ function chromo(color, len = .5, dup = true) {
 }
 
 /* ═════════ ١) الخلية الحيوانية / النباتية (ص ٣٤–٣٥) ═════════ */
+function wobble(g, amp = .05, freq = 1) { const P = g.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); const n = fbm3(v.x * freq + 3, v.y * freq, v.z * freq); v.multiplyScalar(1 + n * amp); P.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; }
+function roundBox(w, h, d, r) { const g = new THREE.BoxGeometry(w, h, d, 24, 16, 16), P = g.attributes.position, v = new THREE.Vector3(), hw = w / 2 - r, hh = h / 2 - r, hd = d / 2 - r; for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); const c = new THREE.Vector3(Math.max(-hw, Math.min(hw, v.x)), Math.max(-hh, Math.min(hh, v.y)), Math.max(-hd, Math.min(hd, v.z))); const dir = v.clone().sub(c); if (dir.lengthSq() > 1e-9) v.copy(c).add(dir.setLength(r)); v.multiplyScalar(1 + fbm3(v.x * .8, v.y * .8, v.z * .8) * .015); P.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; }
 export function cellModel(api, variant = 0) {
   const root = new THREE.Group(); let plant = variant === 1, open = true;
-  const cyt = glass('#f6c8d6', .28, { side: 2 }), cytP = glass('#bfe7a0', .25, { side: 2 });
+  const cyt = tissue('#f6c8d6', { transparent: true, opacity: .32, side: 2, depthWrite: false, kind: 'pore', bumpScale: .6, roughness: .2 }), cytP = tissue('#bfe7a0', { transparent: true, opacity: .3, side: 2, depthWrite: false, kind: 'pore', bumpScale: .6, roughness: .2 });
   // غشاء الخلية الحيوانية (كرة مفتوحة)
-  const memA = mesh(new THREE.SphereGeometry(2.2, 48, 32, 0, Math.PI * 1.45), cyt); memA.scale.set(1.15, .78, 1); root.add(memA);
-  const memAfull = mesh(new THREE.SphereGeometry(2.2, 48, 32), cyt); memAfull.scale.copy(memA.scale); root.add(memAfull);
+  const memA = mesh(wobble(new THREE.SphereGeometry(2.2, 64, 48, 0, Math.PI * 1.45), .05, .7), cyt); memA.scale.set(1.15, .78, 1); root.add(memA);
+  const memAfull = mesh(wobble(new THREE.SphereGeometry(2.2, 64, 48), .05, .7), cyt); memAfull.scale.copy(memA.scale); root.add(memAfull);
   // الخلية النباتية: صندوق مستدير + جدار
-  const boxG = new THREE.BoxGeometry(4.6, 2.6, 3.2, 8, 8, 8); const memP = mesh(boxG, cytP); root.add(memP);
-  const wall = mesh(new THREE.BoxGeometry(4.85, 2.85, 3.45), glass('#7fb24a', .22, { side: 2 })); root.add(wall);
-  const wallEdge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(4.85, 2.85, 3.45)), new THREE.LineBasicMaterial({ color: '#3f7a1f' })); root.add(wallEdge);
+  const boxG = roundBox(4.6, 2.6, 3.2, .35); const memP = mesh(boxG, cytP); root.add(memP);
+  const wall = mesh(roundBox(4.85, 2.85, 3.45, .4), tissue('#7fb24a', { transparent: true, opacity: .3, side: 2, depthWrite: false, kind: 'vein', bumpScale: 1.5 })); root.add(wall);
+  const wallEdge = new THREE.Group(); root.add(wallEdge);
   // النواة
   const nucleus = new THREE.Group(); root.add(nucleus);
-  const env = mesh(new THREE.SphereGeometry(.72, 32, 24), glass('#b06ac0', .45)); nucleus.add(env);
-  const nucleolus = mesh(new THREE.SphereGeometry(.26, 20, 16), mat('#6a2a7a')); nucleolus.position.set(.18, .1, .1); nucleus.add(nucleolus);
+  const env = mesh(wobble(new THREE.SphereGeometry(.72, 48, 36), .04, 2), tissue('#b06ac0', { transparent: true, opacity: .5, depthWrite: false, kind: 'pore', bumpScale: 1.2 })); nucleus.add(env);
+  const nucleolus = mesh(new THREE.SphereGeometry(.26, 20, 16), tissue('#6a2a7a')); nucleolus.position.set(.18, .1, .1); nucleus.add(nucleolus);
   const chromos = []; for (let i = 0; i < 6; i++) { const t = tube([[(Math.random() - .5) * .9, (Math.random() - .5) * .9, (Math.random() - .5) * .9], [(Math.random() - .5) * .9, (Math.random() - .5) * .9, (Math.random() - .5) * .9], [(Math.random() - .5) * .9, (Math.random() - .5) * .9, (Math.random() - .5) * .9]].map(p => V(...p).clampLength(0, .55)), .03, mat(['#3a5bd9', '#d93a6a', '#e0a020'][i % 3]), 24, 6); nucleus.add(t); chromos.push(t); }
   // الميتوكندريا
-  const mitos = []; const mitoM = mat('#e8742c', { roughness: .45 }), cristM = mat('#ffd1a6');
+  const mitos = []; const mitoM = tissue('#e8742c', { roughness: .45 }), cristM = tissue('#ffd1a6');
   const mitoPos = [[-1.2, .3, .6], [1.3, -.3, .5], [.4, .5, -1.1], [-.6, -.5, -.9], [1.6, .45, -.4]];
-  for (const p of mitoPos) { const g = new THREE.Group(); const body = mesh(new THREE.CapsuleGeometry(.17, .42, 6, 12), mitoM); body.rotation.z = Math.PI / 2; g.add(body); for (let k = -2; k <= 2; k++) { const c = mesh(new THREE.TorusGeometry(.1, .018, 6, 14, Math.PI), cristM, [k * .09, 0, .12]); g.add(c); } g.position.set(...p); g.rotation.set(Math.random() * 2, Math.random() * 2, 0); root.add(g); mitos.push(body); }
+  for (const p of mitoPos) { const g = new THREE.Group(); const body = mesh(wobble(new THREE.CapsuleGeometry(.17, .42, 10, 20), .06, 4), mitoM); body.rotation.z = Math.PI / 2; g.add(body); for (let k = -2; k <= 2; k++) { const c = mesh(new THREE.TorusGeometry(.1, .018, 6, 14, Math.PI), cristM, [k * .09, 0, .12]); g.add(c); } g.position.set(...p); g.rotation.set(Math.random() * 2, Math.random() * 2, 0); root.add(g); mitos.push(body); }
   // الفجوات
-  const vacA = [], vacM = glass('#7ec8f0', .55);
+  const vacA = [], vacM = tissue('#7ec8f0', { transparent: true, opacity: .55, depthWrite: false, bumpScale: .3 });
   for (const p of [[-1.5, -.3, -.3], [.9, .9, .3], [-.3, .9, .9]]) { const v = mesh(new THREE.SphereGeometry(.24, 18, 14), vacM, p); root.add(v); vacA.push(v); }
-  const bigVac = mesh(new THREE.SphereGeometry(1, 28, 20), glass('#86d0f5', .45), [.9, 0, .1]); bigVac.scale.set(1.25, .85, 1.05); root.add(bigVac);
+  const bigVac = mesh(new THREE.SphereGeometry(1, 28, 20), tissue('#86d0f5', { transparent: true, opacity: .45, depthWrite: false, bumpScale: .3 }), [.9, 0, .1]); bigVac.scale.set(1.25, .85, 1.05); root.add(bigVac);
   // البلاستيدات الخضراء
-  const chloros = []; const chM = mat('#2f9a3a', { roughness: .35 }), granM = mat('#1d6b25');
-  for (let i = 0; i < 9; i++) { const g = new THREE.Group(); const b = mesh(new THREE.SphereGeometry(.24, 16, 12), chM); b.scale.set(1.6, .7, 1); g.add(b); for (let k = -1; k <= 1; k++) g.add(mesh(new THREE.CylinderGeometry(.07, .07, .12, 12), granM, [k * .14, 0, 0])); g.position.set(-2 + (i % 5) * .95 + (Math.random() - .5) * .2, (i < 5 ? 1.0 : -1.0) + (Math.random() - .5) * .2, (i % 2 ? 1.1 : -1.1)); g.rotation.y = Math.random() * 3; root.add(g); chloros.push(b); }
+  const chloros = []; const chM = tissue('#2f9a3a', { roughness: .35 }), granM = tissue('#1d6b25');
+  for (let i = 0; i < 9; i++) { const g = new THREE.Group(); const b = mesh(wobble(new THREE.SphereGeometry(.24, 28, 20), .05, 5), chM); b.scale.set(1.6, .7, 1); g.add(b); for (let k = -1; k <= 1; k++) g.add(mesh(new THREE.CylinderGeometry(.07, .07, .12, 12), granM, [k * .14, 0, 0])); g.position.set(-2 + (i % 5) * .95 + (Math.random() - .5) * .2, (i < 5 ? 1.0 : -1.0) + (Math.random() - .5) * .2, (i % 2 ? 1.1 : -1.1)); g.rotation.y = Math.random() * 3; root.add(g); chloros.push(b); }
   // الشبكة الإندوبلازمية وأجسام جولجي والرايبوسومات والأجسام المحلّلة
-  const er = tube(Array.from({ length: 14 }, (_, i) => { const a = i / 13 * Math.PI * 1.6 - .3; return [Math.cos(a) * (.95 + (i % 2) * .12), Math.sin(a) * (.95 + (i % 2) * .12) * .8, .15 * Math.sin(i)]; }), .07, mat('#8fa6e8'), 80, 8); root.add(er);
-  const golgi = new THREE.Group(); for (let k = 0; k < 4; k++) golgi.add(mesh(new THREE.TorusGeometry(.38 - k * .03, .05, 8, 24, Math.PI * .9), mat('#f2c84a'), [0, k * .1, 0], [Math.PI / 2, 0, 0])); golgi.position.set(-1.3, -.2, .9); root.add(golgi);
-  const ribos = []; const riM = mat('#4a2d8a'); for (let i = 0; i < 40; i++) { const r = mesh(new THREE.SphereGeometry(.035, 6, 5), riM, [(Math.random() - .5) * 3.4, (Math.random() - .5) * 1.8, (Math.random() - .5) * 2.2]); root.add(r); ribos.push(r); }
-  const lysos = []; for (const p of [[.6, -.8, .9], [-.9, .7, -.6]]) { const l = mesh(new THREE.SphereGeometry(.13, 12, 10), mat('#c9405a'), p); root.add(l); lysos.push(l); }
+  const er = tube(Array.from({ length: 14 }, (_, i) => { const a = i / 13 * Math.PI * 1.6 - .3; return [Math.cos(a) * (.95 + (i % 2) * .12), Math.sin(a) * (.95 + (i % 2) * .12) * .8, .15 * Math.sin(i)]; }), .07, tissue('#8fa6e8', { kind: 'pore' }), 80, 8); er.geometry = vesselGeo(er.userData.curve.points, .09, .06, 160, 10, .35); root.add(er);
+  const golgi = new THREE.Group(); for (let k = 0; k < 4; k++) golgi.add(mesh(new THREE.TorusGeometry(.38 - k * .03, .05, 8, 24, Math.PI * .9), tissue('#f2c84a'), [0, k * .1, 0], [Math.PI / 2, 0, 0])); golgi.position.set(-1.3, -.2, .9); root.add(golgi);
+  const ribos = []; const riM = tissue('#4a2d8a'); for (let i = 0; i < 40; i++) { const r = mesh(new THREE.SphereGeometry(.035, 6, 5), riM, [(Math.random() - .5) * 3.4, (Math.random() - .5) * 1.8, (Math.random() - .5) * 2.2]); root.add(r); ribos.push(r); }
+  const lysos = []; for (const p of [[.6, -.8, .9], [-.9, .7, -.6]]) { const l = mesh(new THREE.SphereGeometry(.13, 12, 10), tissue('#c9405a'), p); root.add(l); lysos.push(l); }
   function apply() {
     memA.visible = !plant && open; memAfull.visible = !plant && !open; memP.visible = plant; wall.visible = wallEdge.visible = plant;
     chloros.forEach(c => c.parent.visible = plant); bigVac.visible = plant; vacA.forEach(v => v.visible = !plant);

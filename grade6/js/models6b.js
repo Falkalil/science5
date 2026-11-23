@@ -1,5 +1,5 @@
 // مجسّمات الصف السادس (٢): النباتات وأجهزة الجسم والأنظمة البيئية
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, cloud, arrowTube } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, cloud, arrowTube, noise3, tissue, vessel, mergeGeos, twigs, srnd, reseed, organGeo, fbm3, badge, ArrowFlow, CellFlow } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 
 /* ═════════ ١) دورة حياة نبات حزازي (ص ٨٦) ═════════ */
@@ -48,30 +48,35 @@ export function mossModel(api) {
 
 /* ── جسم إنسان شفاف ── */
 function body(op = .14) {
-  const g = new THREE.Group(); const m = glass('#f2c8a8', op, { side: 2 });
-  g.add(mesh(new THREE.SphereGeometry(.75, 28, 20), m, [0, 3.3, 0])); g.add(mesh(new THREE.CapsuleGeometry(1.25, 2.4, 10, 24), m, [0, .6, 0]));
-  g.children[1].scale.set(1, 1, .6); g.add(mesh(new THREE.CylinderGeometry(.3, .35, .4, 16), m, [0, 2.55, 0])); return g;
+  const g = new THREE.Group(); const m = new THREE.MeshPhysicalMaterial({ color: '#f0c4a4', roughness: .5, transparent: true, opacity: op + .04, depthWrite: false, sheen: 1, sheenColor: new THREE.Color('#ffe4cf'), clearcoat: .2 });
+  const prof = [[0, -1.75], [.95, -1.65], [1.15, -1.25], [1.08, -.6], [1.0, 0], [1.08, .7], [1.25, 1.5], [1.38, 2.1], [1.2, 2.38], [.55, 2.5], [.34, 2.58], [.32, 2.85], [0, 2.86]].map(([r, y]) => new THREE.Vector2(r, y));
+  const t = new THREE.Mesh(new THREE.LatheGeometry(prof, 72), m); t.scale.z = .6; g.add(t);
+  const h = new THREE.Mesh(organGeo(.72, v => { v.y *= 1.18; v.z *= 1.05; if (v.z > .3 && Math.abs(v.x) < .12 && v.y > -.2 && v.y < .25) v.z += .08 * (1 - Math.abs(v.x) / .12); }, 64, 48), m); h.position.set(0, 3.35, 0); g.add(h);
+  const pre = new THREE.MeshBasicMaterial({ colorWrite: false, transparent: true, opacity: 0, depthWrite: true });
+  [...g.children].forEach(o => { const d = o.clone(); d.material = pre; d.renderOrder = 20; d.raycast = () => {}; d.userData.glow = true; g.add(d); o.renderOrder = 21; });
+  return g;
 }
-
-/* ═════════ ٢) الجهاز الهضمي (ص ١١١) ═════════ */
+/* ═════════ ٢) الجهاز الهضمي (ص ١١١) — أعضاءٌ واقعيّة ═════════ */
 export function digestiveModel(api) {
-  const root = new THREE.Group(); let speed = 1; root.add(body());
-  const mouth = mesh(new THREE.TorusGeometry(.18, .05, 8, 20, Math.PI), mat('#c04a5a'), [0, 3.05, .6], [0, 0, Math.PI]); root.add(mouth);
-  const eso = tube([[0, 3.0, .4], [0, 2.6, .1], [.05, 1.8, 0], [.25, 1.25, 0]], .09, mat('#e89aa0'), 30, 10); root.add(eso);
-  const stomach = mesh(new THREE.SphereGeometry(.55, 28, 20), mat('#e07a86', { roughness: .45 }), [.55, .95, 0]); stomach.scale.set(1.15, .75, .7); stomach.rotation.z = -.5; root.add(stomach);
-  const liver = mesh(new THREE.SphereGeometry(.75, 28, 20), mat('#8a3a2a', { roughness: .5 }), [-.5, 1.3, .1]); liver.scale.set(1.2, .55, .6); root.add(liver);
-  const panc = mesh(new THREE.CapsuleGeometry(.11, .7, 6, 12), mat('#f0c27a'), [.35, .55, -.15], [0, 0, Math.PI / 2 + .2]); root.add(panc);
-  const siPts = []; for (let i = 0; i <= 60; i++) { const a = i / 60 * Math.PI * 9; const r = .55 - i / 60 * .2; siPts.push([Math.cos(a) * r, .2 - i / 60 * 1.1 + Math.sin(a * 2) * .03, Math.sin(a) * r * .5 + .1]); }
-  const smallI = tube([[.55, .65, 0], ...siPts], .07, mat('#f0a0a8'), 300, 8); root.add(smallI);
-  const largeI = tube([[.15, -.95, .1], [-1, -.9, .1], [-1.05, .45, .1], [1.05, .45, .2], [1.05, -.9, .1], [.3, -1.2, .1], [.1, -1.5, 0]], .15, mat('#d9858f'), 120, 10); root.add(largeI);
+  const root = new THREE.Group(); let speed = 1; root.add(body()); reseed(21);
+  const mouth = mesh(new THREE.TorusGeometry(.18, .055, 14, 32, Math.PI), tissue('#c04a5a'), [0, 3.05, .62], [0, 0, Math.PI]); root.add(mouth);
+  const eso = vessel([[0, 3.0, .4], [0, 2.6, .1], [.05, 1.8, 0], [.25, 1.25, 0]], .095, .085, tissue('#d98a90', { kind: 'pore' }), 40, 16, .03); root.add(eso);
+  const stomach = mesh(organGeo(.55, v => { const a = Math.atan2(v.y, v.x); v.x *= 1.15; v.y *= .8; v.z *= .7; v.y += Math.cos(v.x * 2.2) * .12; v.multiplyScalar(1 + fbm3(v.x * 5, v.y * 5, v.z * 5) * .04); }), tissue('#d9737f', { bumpScale: 1.1 }), [.55, .95, 0]); stomach.rotation.z = -.5; root.add(stomach);
+  const liver = mesh(organGeo(.75, v => { v.x *= 1.25; v.y *= .55; v.z *= .62; if (v.x > 0) { v.y *= 1 - v.x * .5; v.z *= 1 - v.x * .3; } v.y -= Math.max(0, -v.y) * .2; v.multiplyScalar(1 + fbm3(v.x * 3, v.y * 3, v.z * 3) * .03); }), tissue('#7a2a1e', { kind: 'pore', bumpScale: .5, clearcoat: .9 }), [-.5, 1.3, .1]); root.add(liver);
+  const gall = mesh(organGeo(.13, v => { v.y *= 1.6; }), tissue('#5f8a3a', { clearcoat: 1 }), [-.35, .95, .32], [0, 0, .5]); root.add(gall);
+  const panc = mesh(organGeo(.4, v => { v.x *= 1.1; v.y *= .26; v.z *= .26; v.y += v.x * v.x * .15; v.multiplyScalar(1 + fbm3(v.x * 9, v.y * 9, v.z * 9) * .12); }), tissue('#eab77a', { kind: 'pore', bumpScale: 1.2 }), [.35, .55, -.15], [0, 0, .2]); root.add(panc);
+  const siPts = []; for (let i = 0; i <= 90; i++) { const t = i / 90; siPts.push([.62 * Math.sin(t * 23 + .6) * (.75 + .25 * Math.cos(t * 7)), .28 - t * 1.12 + .13 * Math.sin(t * 41), .12 + .22 * Math.cos(t * 17) + .05 * Math.sin(t * 53)]); }
+  const smallI = vessel([[.55, .65, 0], ...siPts], .075, .07, tissue('#eb9da5', { bumpScale: .6 }), 600, 12, .06); root.add(smallI);
+  const largeI = vessel([[.15, -.95, .1], [-1, -.9, .1], [-1.05, .45, .1], [1.05, .45, .2], [1.05, -.9, .1], [.3, -1.2, .1], [.1, -1.5, 0]], .16, .13, tissue('#c9737c', { bumpScale: .8 }), 220, 16, .16); root.add(largeI);
   const path = curve([[0, 3.05, .6], [0, 2.6, .1], [.05, 1.8, 0], [.25, 1.25, 0], [.6, .95, 0], [.55, .65, 0], ...siPts.filter((_, i) => i % 3 === 0), [.15, -.95, .1], [-1, -.9, .1], [-1.05, .45, .1], [1.05, .45, .2], [1.05, -.9, .1], [.3, -1.2, .1], [.1, -1.5, 0]]);
-  const bolus = mesh(new THREE.SphereGeometry(.13, 14, 10), mat('#a8722a'), [0, 3.05, .6]); root.add(bolus); let bt = -1;
+  const bolus = mesh(organGeo(.13, v => v.multiplyScalar(1 + fbm3(v.x * 20, v.y * 20, v.z * 20) * .15), 24, 18), mat('#a8722a'), [0, 3.05, .6]); root.add(bolus); let bt = -1;
   const say = [[0, 'الفم: يبدأُ الهضمُ في الفم.'], [.06, 'المريء: ينقلُ الطعامَ إلى المعدة.'], [.17, 'المعدة: يحلّلُ الحمضُ وإنزيمُ المعدةِ الغذاءَ إلى دقائقَ صغيرة.'], [.27, 'الأمعاءُ الدقيقة: تحلّلُ العصارةُ الهضميةُ البروتيناتِ والنشويّاتِ والدهون، وتُمتصُّ الموادُّ الغذائيةُ إلى الدم.'], [.72, 'الأمعاءُ الغليظة: يُمتصُّ الماء.'], [.97, 'الإخراج: التخلّصُ من الفضلاتِ خارجَ الجسم.']]; let said = -1;
   const parts = [
     { id: 'mouth', name: 'الفم', info: 'في الإنسانِ يحدثُ الهضمُ في الفمِ والمعدةِ والأمعاءِ الدقيقة.', objs: [mouth], at: anchor(root, [0, 3.05, .7]) },
     { id: 'eso', name: 'المريء', info: 'أنبوبٌ ينقلُ الغذاءَ من الفمِ إلى المعدة.', objs: [eso], at: anchor(root, [0, 2.2, .1]) },
     { id: 'stom', name: 'المعدة', info: 'يحلّلُ الحمضُ وإنزيمُ المعدةِ الغذاءَ إلى دقائقَ صغيرة.', objs: [stomach], at: anchor(root, [.9, 1.1, .3]) },
     { id: 'liver', name: 'الكبد', info: 'يساعدُ الكبدُ الجهازَ الهضميَّ في هضمِ الطعام، ويعملُ على تخليصِ الجسمِ من الفضلات.', objs: [liver], at: anchor(root, [-.9, 1.45, .4]) },
+    { id: 'gall', name: 'الحويصلة الصفراوية', info: 'كيسٌ صغيرٌ تحتَ الكبدِ يخزّنُ العصارةَ الصفراءَ التي يفرزُها الكبد، وتساعدُ على هضمِ الدهون. (إثراء)', objs: [gall], at: anchor(root, [-.45, .85, .45]) },
     { id: 'panc', name: 'البنكرياس', info: 'غدّةٌ تفرزُ عصارةً هضميةً تحلّلُ البروتيناتِ والنشويّاتِ والدهون.', objs: [panc], at: anchor(root, [.35, .55, .1]) },
     { id: 'si', name: 'الأمعاء الدقيقة', info: 'تقومُ الأمعاءُ الدقيقةُ بامتصاصِ الموادِّ الغذائيةِ ونقلِها إلى الدم.', objs: [smallI], at: anchor(root, [0, -.3, .5]) },
     { id: 'li', name: 'الأمعاء الغليظة', info: 'تمتصُّ الأمعاءُ الغليظةُ الماءَ من بقايا الطعام، ثم يتمُّ التخلّصُ من الفضلاتِ خارجَ الجسمِ بعمليةِ الإخراج.', objs: [largeI], at: anchor(root, [-1.1, -.2, .3]) }
@@ -93,20 +98,25 @@ export function digestiveModel(api) {
   };
 }
 
-/* ═════════ ٣) الجهاز التنفسي (ص ١١٣) ═════════ */
+/* ═════════ ٣) الجهاز التنفسي (ص ١١٣) — أعضاءٌ واقعيّة ═════════ */
 export function lungsModel(api) {
-  const root = new THREE.Group(); let rate = 1, t = 0, auto = true; root.add(body(.1));
-  const airM = mat('#e8d2c4', { roughness: .5 });
-  const nose = mesh(new THREE.ConeGeometry(.14, .3, 12), mat('#e8b090'), [0, 3.3, .75], [Math.PI / 2, 0, 0]); root.add(nose);
-  const phar = tube([[0, 3.3, .55], [0, 3.1, .2], [0, 2.75, .05]], .09, airM, 16, 8); root.add(phar);
-  const larynx = mesh(new THREE.CylinderGeometry(.16, .14, .28, 16), mat('#d8b8a8'), [0, 2.6, .05]); root.add(larynx);
-  const trachea = new THREE.Group(); for (let i = 0; i < 9; i++) trachea.add(mesh(new THREE.TorusGeometry(.13, .035, 8, 18), airM, [0, 2.4 - i * .1, .05], [Math.PI / 2, 0, 0])); root.add(trachea);
-  const bron = []; for (const s of [-1, 1]) { bron.push(tube([[0, 1.55, .05], [s * .4, 1.3, .05], [s * .75, 1.1, 0]], .08, airM, 16, 8)); for (let k = 0; k < 4; k++) bron.push(tube([[s * .75, 1.1, 0], [s * (.9 + k * .1), .8 - k * .25, (k - 1.5) * .15], [s * (1 + k * .12), .5 - k * .3, (k - 1.5) * .2]], .035, airM, 10, 6)); }
-  bron.forEach(b => root.add(b));
-  const lM = glass('#f28c9a', .45);
-  const lungL = mesh(new THREE.SphereGeometry(1, 32, 24), lM, [-1, .5, 0]); lungL.scale.set(.62, 1.25, .6); const lungR = mesh(new THREE.SphereGeometry(1, 32, 24), lM, [1, .5, 0]); lungR.scale.set(.68, 1.25, .6); root.add(lungL, lungR);
-  const alv = new THREE.Group(); for (let i = 0; i < 9; i++) alv.add(mesh(new THREE.SphereGeometry(.09, 10, 8), mat('#e05a6a'), [1.15 + (i % 3) * .14, -.25 + Math.floor(i / 3) * .14, .3])); root.add(alv);
-  const diaph = mesh(new THREE.SphereGeometry(1.6, 32, 12, 0, Math.PI * 2, 0, Math.PI / 3.2), mat('#c0505a', { side: 2 }), [0, -1.45, 0]); diaph.scale.set(1, .45, .6); root.add(diaph);
+  const root = new THREE.Group(); let rate = 1, t = 0, auto = true; root.add(body(.1)); reseed(31);
+  const airM = tissue('#d9b3a2', { kind: 'pore', bumpScale: .5 });
+  const nose = mesh(organGeo(.16, v => { v.z *= 1.6; v.y *= 1.2; if (v.z > 0) v.x *= 1 - v.z * 1.2; }), tissue('#e8b090', { kind: 'pore' }), [0, 3.32, .72]); root.add(nose);
+  const phar = vessel([[0, 3.3, .55], [0, 3.1, .2], [0, 2.75, .05]], .1, .09, airM, 20, 12); root.add(phar);
+  const larynx = mesh(organGeo(.16, v => { v.y *= 1.1; if (v.z > 0) v.z *= 1.3; }), tissue('#d8b8a8'), [0, 2.6, .05]); root.add(larynx);
+  const trachea = new THREE.Group(); trachea.add(vessel([[0, 2.48, .05], [0, 1.95, .05], [0, 1.55, .05]], .12, .115, airM, 30, 16)); for (let i = 0; i < 9; i++) trachea.add(mesh(new THREE.TorusGeometry(.125, .028, 10, 28), tissue('#efe2d6'), [0, 2.4 - i * .1, .05], [Math.PI / 2, 0, 0])); root.add(trachea);
+  const bron = []; const tw = [];
+  for (const s of [-1, 1]) { bron.push(vessel([[0, 1.55, .05], [s * .4, 1.3, .05], [s * .75, 1.1, 0]], .085, .06, airM, 20, 12)); for (let k = 0; k < 4; k++) { const e = V(s * (1 + k * .12), .5 - k * .3, (k - 1.5) * .2); bron.push(vessel([[s * .75, 1.1, 0], [s * (.9 + k * .1), .8 - k * .25, (k - 1.5) * .15], e.toArray()], .04, .025, airM, 12, 8)); twigs(tw, e, V(s * .2, -.6, (k - 1.5) * .3), .13, .016, 4, 1.5); twigs(tw, V(s * (.9 + k * .1), .8 - k * .25, (k - 1.5) * .15), V(s * .5, .4 - k * .3, (k - 1.5) * .4), .14, .016, 4, 1.5); } }
+  bron.push(new THREE.Mesh(mergeGeos(tw), airM)); bron.forEach(b => root.add(b));
+  const lM = tissue('#ec8a97', { transparent: true, opacity: .55, depthWrite: false, bumpScale: 1.4, roughness: .55 });
+  const lungGeo = s => organGeo(1, v => { const t = (v.y + 1) / 2; v.x *= (.5 + t * .2) * (v.x * s > 0 ? 1.15 : .8); v.y *= 1.05 - (v.y > 0 ? v.y * .35 : 0); if (v.y < -.6) v.y += (v.x * s) * .1; v.multiplyScalar(1 + fbm3(v.x * 3 + s, v.y * 3, v.z * 3) * .05); if (s < 0 && v.x * s < -.1 && v.y < .1 && v.z > 0) v.x += s * .12; }, 72, 56);
+  const lungL = mesh(lungGeo(-1), lM, [-1, .5, 0]); lungL.scale.set(.62 / .62, 1.25, .6); const lungR = mesh(lungGeo(1), lM, [1, .5, 0]); lungR.scale.set(1.1, 1.25, .6); lungL.renderOrder = lungR.renderOrder = 2; root.add(lungL, lungR);
+  // عنقودُ الحويصلاتِ الهوائيّةِ مع شعيراتٍ دمويّة
+  const alv = new THREE.Group(); const aM = tissue('#e8707e', { kind: 'pore', clearcoat: 1 }), cap = [];
+  for (let i = 0; i < 16; i++) { const p = V(1.2 + (srnd() - .5) * .32, -.12 + (srnd() - .5) * .3, .3 + (srnd() - .5) * .16); alv.add(mesh(new THREE.SphereGeometry(.055 + srnd() * .025, 18, 14), aM, p.toArray())); twigs(cap, p, V(srnd() - .5, srnd() - .5, 1), .06, .006, 2, 1.6); }
+  const capM = [new THREE.Mesh(mergeGeos(cap), tissue('#b5121d'))]; alv.add(...capM); root.add(alv);
+  const diaph = mesh(new THREE.SphereGeometry(1.6, 48, 16, 0, Math.PI * 2, 0, Math.PI / 3.2), tissue('#b8505a', { side: 2, bumpScale: 1 }), [0, -1.45, 0]); diaph.scale.set(1, .45, .6); root.add(diaph);
   const o2 = new Flow(root, '#4ab0ff', .05, 50), co2 = new Flow(root, '#9a9a9a', .05, 50);
   o2.addPath(curve([[0, 3.4, .9], [0, 3.1, .3], [0, 2.6, .05], [0, 1.6, .05], [.6, 1.2, 0], [1.2, -.1, .3]]), .5).addPath(curve([[0, 3.4, .9], [0, 3.1, .3], [0, 2.6, .05], [0, 1.6, .05], [-.6, 1.2, 0], [-1.1, .2, .2]]), .5);
   co2.addPath(curve([[1.2, -.1, .3], [.6, 1.2, 0], [0, 1.6, .05], [0, 2.6, .05], [0, 3.1, .3], [0, 3.4, 1]]), .5);
@@ -116,13 +126,13 @@ export function lungsModel(api) {
     { id: 'lar', name: 'الحنجرة', info: 'ينتقلُ الهواءُ من البلعومِ إلى الحنجرة، ثم إلى القصبةِ الهوائية.', objs: [larynx], at: anchor(root, [.25, 2.6, .1]) },
     { id: 'tra', name: 'القصبة الهوائية', info: 'أنبوبٌ تدعمُه حلقاتٌ غضروفيةٌ ينقلُ الهواءَ إلى الشعبتينِ الهوائيتين.', objs: trachea.children, at: anchor(root, [.25, 2.0, .1]) },
     { id: 'bron', name: 'الشعبتان والشعيبات الهوائية', info: 'تتفرّعُ الشعبتانِ الهوائيتانِ إلى شعيباتٍ هوائيةٍ أدقَّ فأدقّ، حتى تنتهيَ بأكياسٍ صغيرةٍ تسمّى الحويصلاتِ الهوائية.', objs: bron, at: anchor(root, [-.5, 1.4, .1]) },
-    { id: 'alv', name: 'الحويصلات الهوائية', info: 'عندَ الحويصلاتِ الهوائيةِ يحدثُ تبادلُ الغازاتِ بينَ الدمِ والهواءِ الذي يدخلُ إليها من خلالِ جدرانِها الرقيقة.', objs: alv.children, at: anchor(root, [1.3, -.1, .4]) },
+    { id: 'alv', name: 'الحويصلات الهوائية', info: 'عندَ الحويصلاتِ الهوائيةِ يحدثُ تبادلُ الغازاتِ بينَ الدمِ والهواءِ الذي يدخلُ إليها من خلالِ جدرانِها الرقيقة.', objs: alv.children, at: anchor(root, [1.3, -.1, .45]) },
     { id: 'lung', name: 'الرئتان', info: 'تستخدمُ الزواحفُ والطيورُ والثديياتُ الرئاتِ بصورةٍ رئيسةٍ في التنفّس.', objs: [lungL, lungR], at: anchor(root, [-1.1, 1.4, .3]) },
     { id: 'dia', name: 'الحجاب الحاجز', info: 'ينقبضُ الحجابُ الحاجزُ وينبسطُ لينظّمَ عمليةَ التنفّس: الشهيقَ والزفير.', objs: [diaph], at: anchor(root, [0, -1.0, .6]) }
   ];
   return {
     root, parts,
-    update(dt) { if (auto) t += dt * rate; const inh = Math.sin(t * 1.4); const k = 1 + inh * .08; lungL.scale.set(.62 * k, 1.25 * k, .6 * k); lungR.scale.set(.68 * k, 1.25 * k, .6 * k); diaph.position.y = -1.45 - inh * .15; o2.rate = inh > 0 ? 6 * rate : 0; co2.rate = inh < 0 ? 6 * rate : 0; o2.update(dt); co2.update(dt); },
+    update(dt) { if (auto) t += dt * rate; const inh = Math.sin(t * 1.4); const k = 1 + inh * .08; lungL.scale.set(1.05 * k, 1.25 * k, .6 * k); lungR.scale.set(1.12 * k, 1.25 * k, .6 * k); diaph.position.y = -1.45 - inh * .15; o2.rate = inh > 0 ? 6 * rate : 0; co2.rate = inh < 0 ? 6 * rate : 0; o2.update(dt); co2.update(dt); },
     cam: { pos: [0, 1.5, 7.2], target: [0, 1.1, 0] }, inpage: { pos: [0, 1.4, 7.4], target: [0, 1.0, 0] },
     controls: [
       { type: 'slider', label: 'سرعة التنفّس', min: .3, max: 3, step: .1, value: 1, fmt: v => v < .8 ? 'هادئ' : v < 1.8 ? 'طبيعي' : 'سريع (رياضة)', on: v => { rate = v; if (v > 1.8) api.toast('في التمارينِ المجهدةِ يتنفّسُ الشخصُ بسرعةٍ لتزويدِ العضلاتِ بالأكسجين.'); } },
@@ -138,71 +148,144 @@ export function lungsModel(api) {
   };
 }
 
-/* ═════════ ٤) الدورة الدموية (ص ١١٦) ═════════ */
+/* ═════════ ٤) الدورة الدموية (ص ١١٦) — نموذجٌ واقعيٌّ مطابقٌ لشكلِ الكتاب ═════════ */
 export function heartModel(api) {
-  const root = new THREE.Group(); let t = 0, rate = 1;
-  const heart = new THREE.Group(); const R = mesh(new THREE.SphereGeometry(.65, 28, 20), mat('#3a5ad0', { roughness: .45 }), [-.35, 0, 0]); R.scale.set(1, 1.2, .9); const L = mesh(new THREE.SphereGeometry(.7, 28, 20), mat('#d0303a', { roughness: .45 }), [.4, -.05, 0]); L.scale.set(1, 1.25, .9); heart.add(R, L); root.add(heart);
-  const red = mat('#d9343f'), blue = mat('#3456c8');
-  const toLungR = tube([[-.3, .7, 0], [-.6, 1.6, 0], [-2.2, 1.6, 0]], .12, blue, 30, 10), toLungL = tube([[-.3, .7, 0], [.2, 1.8, 0], [2.2, 1.7, 0]], .12, blue, 30, 10);
-  const fromLungR = tube([[-2.2, 1.0, .1], [-1, 1, .2], [.3, .6, .2]], .12, red, 30, 10), fromLungL = tube([[2.2, 1.0, .1], [1, .9, .2], [.5, .6, .2]], .12, red, 30, 10);
-  const aorta = tube([[.5, .7, -.1], [.6, 2.4, -.2], [.9, 3, -.2]], .15, red, 30, 10), down = tube([[.6, -.7, -.1], [.6, -2, -.1]], .15, red, 20, 10);
-  const vena = tube([[-.5, -2, .1], [-.6, -.7, .1], [-.5, -.3, .1]], .15, blue, 20, 10), venaUp = tube([[-.6, 3, .1], [-.6, .6, .1]], .15, blue, 20, 10);
-  [toLungR, toLungL, fromLungR, fromLungL, aorta, down, vena, venaUp].forEach(o => root.add(o));
-  function capBed(x, y, w = 1.1) { const g = new THREE.Group(); for (let i = 0; i < 10; i++) { const k = i / 9; const c = new THREE.Color().lerpColors(new THREE.Color('#3456c8'), new THREE.Color('#d9343f'), k); g.add(tube([[x - w / 2, y + .5 - k, 0], [x, y + .5 - k + Math.sin(i) * .1, .2], [x + w / 2, y + .5 - k, 0]], .03, mat(c), 14, 5)); } root.add(g); return g; }
-  const capLR = capBed(-2.6, 1.3), capLL = capBed(2.6, 1.3), capBody = capBed(0, -2.6, 1.6);
-  const lungR = mesh(new THREE.SphereGeometry(.85, 24, 16), glass('#f2a0a8', .3), [-2.6, 1.3, -.2]); lungR.scale.set(.8, 1.1, .6); const lungL = lungR.clone(); lungL.position.x = 2.6; root.add(lungR, lungL);
-  const fb = new Flow(root, '#3456c8', .06, 60), fr = new Flow(root, '#e0404a', .06, 60);
-  fb.addPath(curve([[-.5, -2.4, .1], [-.6, -.7, .1], [-.35, 0, .3], [-.6, 1.6, 0], [-2.2, 1.6, 0], [-2.8, 1.5, 0]]), .3).addPath(curve([[-.6, 3, .1], [-.6, .6, .1], [-.3, .7, .3], [.2, 1.8, 0], [2.2, 1.7, 0], [2.8, 1.6, 0]]), .3);
-  fr.addPath(curve([[-2.6, .9, .1], [-1, 1, .2], [.4, .2, .3], [.6, 2.4, -.2], [.9, 3, -.2]]), .3).addPath(curve([[2.6, .9, .1], [1, .9, .2], [.4, 0, .3], [.6, -.7, -.1], [.6, -2.2, -.1], [0, -2.6, .2]]), .3);
+  const root = new THREE.Group(); let beat = 0, rate = 1, step = -1; reseed(11);
+  const red = tissue('#b5121d', { kind: 'pore', bumpScale: .4, transparent: true, opacity: .74 }), blue = tissue('#2a45a8', { kind: 'pore', bumpScale: .4, transparent: true, opacity: .74 });
+  const capM = tissue('#7d3a8f', { kind: 'pore', bumpScale: .3, transparent: true, opacity: .85 });
+  const book = new THREE.Group(), extra = new THREE.Group(); root.add(book, extra); extra.visible = false;
+  const flows = { a: [], v: [] };
+  const add = (grp, pts, r0, r1, m, fl, ex) => { const o = vessel(pts, r0, r1, m); o.renderOrder = 1; grp.add(o); if (fl) flows[fl].push({ c: o.userData.curve, r0, r1, hide: ex ? () => !extra.visible : null }); return o; };
+  // الأوعيةُ كما في الشكل
+  const aorta = [add(book, [[.08, 1.42, .3], [-.02, 1.9, .24], [.05, 2.18, .05], [.24, 2.12, -.16], [.26, 1.7, -.3], [.18, .9, -.32]], .11, .095, red, 'a'), add(book, [[.05, 2.15, .05], [.05, 2.6, .05], [.05, 2.95, .05]], .06, .055, red, 'a')];
+  const vena = [add(book, [[-.2, 2.95, .14], [-.2, 2.3, .12], [-.17, 1.75, .22], [-.14, 1.42, .3]], .1, .095, blue, 'v'), add(book, [[-.14, .8, -.05], [-.15, 1.0, .05], [-.16, 1.15, .22]], .1, .1, blue, 'v')];
+  const part = [add(book, [[-.02, 1.38, .4], [-.06, 1.72, .45], [-.02, 1.95, .32]], .085, .075, blue, 'v')];
+  for (const s of [1, -1]) part.push(add(book, [[-.02, 1.95, .32], [.25 * s, 2.0, .24], [.5 * s, 1.92, .12]], .06, .045, blue, 'v'));
+  const pvein = []; for (const s of [1, -1]) for (const dy of [.12, -.18]) pvein.push(add(book, [[.62 * s, 1.5 + dy, .08], [.38 * s, 1.38 + dy * .5, .16], [.16 * s + .06, 1.26, .2]], .035, .045, red, 'a'));
+  // الشعيراتُ الدمويّةُ في الرئتين: تبدأُ زرقاءَ وتنتهي حمراء
+  const caps = []; { const bl = [], rd = [], mid = [];
+    for (const s of [1, -1]) { twigs(bl, V(.5 * s, 1.92, .12), V(.5 * s, -.15, 0), .2, .028, 4, 1.3); twigs(bl, V(.5 * s, 1.92, .12), V(.25 * s, .6, -.1), .18, .024, 3, 1.3); twigs(bl, V(.5 * s, 1.92, .12), V(.2 * s, -1, 0), .22, .026, 4, 1.2);
+      for (const dy of [.12, -.18]) { twigs(rd, V(.62 * s, 1.5 + dy, .08), V(.6 * s, -.1, -.05), .18, .026, 4, 1.3); twigs(rd, V(.62 * s, 1.5 + dy, .08), V(.2 * s, -.8, 0), .2, .024, 3, 1.2); }
+      for (let k = 0; k < 14; k++) twigs(mid, V((.35 + srnd() * .45) * s, 1.05 + srnd() * 1.05, -.15 + srnd() * .3), V(srnd() - .5, srnd() - .5, srnd() - .5), .08, .01, 2, 1.5); }
+    for (const [L, m] of [[bl, blue], [rd, red], [mid, capM]]) { const o = new THREE.Mesh(mergeGeos(L), m); o.renderOrder = 1; book.add(o); caps.push(o); } }
+  // القلب
+  const heart = new THREE.Group(); heart.position.set(.06, 1.16, .32); heart.rotation.set(.25, -.35, .55); const HS = .82; heart.scale.setScalar(HS); book.add(heart);
+  const hShape = v => { const y = v.y; const s = y < 0 ? 1 + y * .55 : 1 - y * y * .08; v.x *= s * 1.05; v.z *= s * .9; v.y *= 1.25; v.multiplyScalar(1 + fbm3(v.x * 3 + 1, v.y * 3, v.z * 3) * .05); if (y > .3) v.x += Math.sin(v.z * 4) * .04; return v; };
+  const hm = tissue('#8e1d22', { bumpScale: .9 }), raM = tissue('#6e2240'), laM = tissue('#7a1a24');
+  const H = mesh(organGeo(.42, hShape, 96, 72), hm); heart.add(H);
+  const RA = mesh(new THREE.SphereGeometry(.2, 40, 30), raM, [-.3, .42, .02], null, [1, .8, .9]), LA = mesh(new THREE.SphereGeometry(.2, 40, 30), laM, [.28, .42, .02], null, [1, .8, .9]); heart.add(RA, LA);
+  const cor = (pts, r, m) => heart.add(vessel(pts.map(p => hShape(V(...p).multiplyScalar(1.03))), r, r * .4, m, 40, 8));
+  const corA = tissue('#c0141f'), corV = tissue('#2c49b0');
+  cor([[0, .3, .42], [.05, 0, .44], [.12, -.3, .33], [.08, -.5, .15]], .018, corA); cor([[.2, .28, .35], [.35, 0, .2], [.32, -.3, .05]], .016, corA); cor([[-.25, .28, .33], [-.32, 0, .25], [-.25, -.35, .1]], .016, corA); cor([[.05, .25, .43], [-.08, -.1, .43], [-.05, -.45, .25]], .014, corV);
+  // الرئتان والقصبة
+  const lungs = new THREE.Group(); book.add(lungs); const lungM = tissue('#e39a9a', { transparent: true, opacity: .5, depthWrite: false, bumpScale: 1.2, roughness: .55 });
+  for (const s of [1, -1]) { const g = organGeo(.5, v => { const t = v.y + .5; v.x *= (.55 + t * .2) * (v.x * s < 0 ? .75 : 1.1); v.z *= .9; v.y *= 2.1 - (v.y > 0 ? v.y * .9 : 0); v.multiplyScalar(1 + fbm3(v.x * 4 + s, v.y * 4, v.z * 4) * .06); }, 80, 60);
+    const m = new THREE.Mesh(g, lungM); m.position.set(.58 * s, 1.55, .02); m.renderOrder = 2; lungs.add(m); }
+  const trM = tissue('#e7d2c4', { kind: 'pore', bumpScale: .5 }); lungs.add(vessel([[0, 2.75, -.08], [0, 2.2, -.1], [0, 1.98, -.12]], .06, .055, trM, 20, 12)); for (const s of [1, -1]) lungs.add(vessel([[0, 1.98, -.12], [.22 * s, 1.84, -.12], [.45 * s, 1.66, -.1]], .045, .03, trM, 16, 10));
+  // إثراء: الجسمُ كاملًا
+  const aT = [], vT = [], ex = [];
+  ex.push(add(extra, [[.18, .9, -.32], [.06, -.2, -.26], [.04, -.6, -.2]], .095, .085, red, 'a', 1), add(extra, [[-.1, -.62, -.08], [-.1, -.1, -.14], [-.14, .8, -.05]], .1, .1, blue, 'v', 1));
+  for (const s of [1, -1]) { const off = (pts, dx, dz) => pts.map(([x, y, z]) => [x + s * dx, y, z + dz]);
+    ex.push(add(extra, [[.16 * s, 2.15, .02], [.45 * s, 2.32, .02], [.9 * s, 2.3, 0], [1.15 * s, 1.6, .02], [1.35 * s, .95, .06], [1.52 * s, .35, .12], [1.63 * s, -.12, .16]], .055, .03, red, 'a', 1));
+    ex.push(add(extra, [[.05, 2.6, .05], [.15 * s, 2.75, .08], [.17 * s, 2.95, .06], [.2 * s, 3.25, .02]], .045, .025, red, 'a', 1), add(extra, [[.17 * s, 2.95, .06], [.3 * s, 3.2, .15], [.35 * s, 3.55, .05], [.22 * s, 3.75, -.05]], .025, .012, red, null, 1));
+    ex.push(add(extra, [[.04 * s, -.6, -.2], [.25 * s, -.85, -.02], [.42 * s, -1.25, .08], [.48 * s, -2.1, .05], [.5 * s, -2.35, -.05], [.5 * s, -3.0, -.02], [.52 * s, -3.42, .02], [.56 * s, -3.55, .3]], .075, .028, red, 'a', 1));
+    ex.push(add(extra, off([[1.63 * s, -.12, .16], [1.52 * s, .35, .12], [1.35 * s, .95, .06], [1.15 * s, 1.6, .02], [.9 * s, 2.3, 0], [.45 * s, 2.25, .1]], .06, .09).concat([[-.2, 2.3, .12]]), .03, .06, blue, 'v', 1));
+    ex.push(add(extra, [[.28 * s, 3.3, .05], [.25 * s, 2.95, .14], [.22 * s, 2.55, .16], [-.12 + .06 * s, 2.4, .14]], .025, .05, blue, 'v', 1));
+    ex.push(add(extra, off([[.56 * s, -3.55, .3], [.52 * s, -3.42, .02], [.5 * s, -3.0, -.02], [.5 * s, -2.35, -.05], [.48 * s, -2.1, .05], [.42 * s, -1.25, .08], [.25 * s, -.85, -.02]], .07, .07).concat([[-.1, -.62, -.08]]), .03, .085, blue, 'v', 1));
+    twigs(aT, V(1.63 * s, -.12, .16), V(.15 * s, -1, .2), .28, .02, 3); twigs(aT, V(.56 * s, -3.55, .3), V(0, -.2, 1), .2, .02, 2); twigs(aT, V(.22 * s, 3.75, -.05), V(-.3 * s, .6, -.2), .22, .012, 3); twigs(aT, V(.48 * s, -2.1, .05), V(.3 * s, -.5, .4), .25, .025, 2);
+    twigs(vT, V(1.7 * s, -.1, .25), V(.1 * s, -1, .2), .26, .02, 3); twigs(vT, V(.63 * s, -3.55, .36), V(0, -.2, 1), .18, .018, 2); twigs(vT, V(.3 * s, 3.4, .05), V(.1 * s, .6, -.3), .22, .012, 3); }
+  const bodyCap = [new THREE.Mesh(mergeGeos(aT), red), new THREE.Mesh(mergeGeos(vT), blue)]; bodyCap.forEach(o => { o.renderOrder = 1; extra.add(o); });
+  const skinM = new THREE.MeshPhysicalMaterial({ color: '#e7b99a', roughness: .5, transparent: true, opacity: .16, depthWrite: false, sheen: 1, sheenColor: new THREE.Color('#ffe2cc') }), skin = new THREE.Group(); extra.add(skin);
+  const limb = (a, b, r1, r2) => { const A0 = V(...a), B0 = V(...b), m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, A0.distanceTo(B0), 32, 8, true), skinM); m.position.copy(A0).add(B0).multiplyScalar(.5); m.quaternion.setFromUnitVectors(V(0, 1, 0), B0.clone().sub(A0).normalize()); skin.add(m);
+    for (const [p, r] of [[A0, r1], [B0, r2]]) { const j = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), skinM); j.position.copy(p); skin.add(j); } };
+  { const prof = [[0, -1.15], [.5, -1.05], [.62, -.65], [.56, -.1], [.5, .3], [.58, .9], [.74, 1.5], [.82, 2.05], [.64, 2.35], [.25, 2.55], [.13, 2.62]].map(([r, y]) => new THREE.Vector2(r, y));
+    const t = new THREE.Mesh(new THREE.LatheGeometry(prof, 64), skinM); t.scale.z = .6; skin.add(t); const h = new THREE.Mesh(new THREE.SphereGeometry(.42, 48, 36), skinM); h.position.set(0, 3.35, .02); h.scale.set(.95, 1.2, 1.05); skin.add(h); limb([0, 2.55, 0], [0, 2.95, .02], .15, .14);
+    for (const s of [1, -1]) { limb([.62 * s, 2.25, 0], [1.18 * s, 1.0, .05], .19, .14); limb([1.18 * s, 1.0, .05], [1.6 * s, -.08, .15], .14, .1); limb([.32 * s, -.95, 0], [.46 * s, -2.2, .04], .3, .19); limb([.46 * s, -2.2, .04], [.5 * s, -3.35, -.02], .19, .11); } }
+  { const pre = new THREE.MeshBasicMaterial({ colorWrite: false, transparent: true, opacity: 0, depthWrite: true }); skinM.side = THREE.FrontSide;
+    [...skin.children].forEach(m => { const d = m.clone(); d.material = pre; d.renderOrder = 20; d.raycast = () => {}; d.userData.glow = true; skin.add(d); m.renderOrder = 21; }); }
+  // خلايا الدم + الأسهمُ الخضراءُ المرقّمة
+  const cA = new CellFlow(root, flows.a, '#ff2a3a', 480), cV = new CellFlow(root, flows.v, '#4a6cff', 400);
+  const STEPS = [
+    { p: [[[-.2, 2.85, .28], [-.17, 1.8, .36], [-.2, 1.4, .5], [-.12, 1.0, .58]], [[-.15, .82, .1], [-.17, 1.0, .25], [-.15, 1.12, .5]]], at: [-.62, .78, .6] },
+    { p: [[[-.05, 1.05, .62], [-.02, 1.45, .55], [-.08, 1.78, .58], [-.02, 1.98, .46], [-.3, 2.06, .38], [-.55, 1.98, .26]], [[-.02, 1.98, .46], [.3, 2.06, .38], [.55, 1.98, .26]]], at: [-.42, 2.4, .4] },
+    { p: [[[-.6, 1.98, .3], [-.92, 1.75, .3], [-.95, 1.35, .3], [-.7, 1.3, .3]], [[.6, 1.98, .3], [.92, 1.75, .3], [.95, 1.35, .3], [.7, 1.3, .3]]], at: [-1.1, 1.0, .35] },
+    { p: [[[.62, 1.45, .3], [.35, 1.32, .38], [.22, 1.2, .55], [.18, .95, .58]], [[.12, 1.05, .6], [.12, 1.45, .52], [.02, 1.95, .44], [.06, 2.3, .22], [.06, 2.85, .18]], [[.24, 2.12, .02], [.38, 1.7, -.15], [.3, 1.0, -.15]]], at: [.85, .8, .55] }];
+  STEPS.forEach((S, i) => { S.f = new ArrowFlow(book, S.p); S.b = badge(i + 1, .2); S.b.position.set(...S.at); S.f.g.add(S.b); });
+  const showStep = k => { step = k; STEPS.forEach((S, i) => S.f.g.visible = k < 0 || k === i); raM.emissive.set(k === 0 || k === 1 ? '#2a3fa0' : '#000'); raM.emissiveIntensity = .6; laM.emissive.set(k === 3 ? '#a01020' : '#000'); laM.emissiveIntensity = .6; };
+  showStep(-1);
   const parts = [
-    { id: 'heartR', name: 'القلب (الجانب الأيمن)', info: 'تبدأُ الدورةُ الدمويةُ عندما يضخُّ القلبُ الدمَ غيرَ المؤكسجِ (غيرَ المحمّلِ بالأكسجين) إلى الرئتين.', objs: [R], at: anchor(heart, [-.7, .7, .3]) },
-    { id: 'heartL', name: 'القلب (الجانب الأيسر)', info: 'يعودُ الدمُ المؤكسجُ إلى القلب، حيث يُضخُّ إلى جميعِ أجزاءِ الجسم.', objs: [L], at: anchor(heart, [.8, .7, .3]) },
-    { id: 'lungcap', name: 'شعيرات الرئتين', info: 'في الرئةِ داخلَ الحويصلةِ الهوائيةِ يتمُّ تبادلُ الغازات؛ حيث ينتقلُ الأكسجينُ إلى الدم، وينتقلُ ثاني أكسيدِ الكربونِ إلى تجويفِ الحويصلةِ ثم إلى خارجِ الجسمِ مع هواءِ الزفير.', objs: [...capLR.children, ...capLL.children], at: anchor(root, [-2.6, 2.2, 0]) },
-    { id: 'artery', name: 'الشريان', info: 'يحملُ الدمَ المؤكسجَ (اللونُ الأحمر) من القلبِ إلى سائرِ أجزاءِ الجسم.', objs: [aorta, down], at: anchor(root, [.9, 2.6, 0]) },
-    { id: 'vein', name: 'الوريد', info: 'يحملُ الدمَ غيرَ المؤكسجِ (اللونُ الأزرق) من أجزاءِ الجسمِ إلى القلب.', objs: [vena, venaUp], at: anchor(root, [-.9, 2.6, 0]) },
-    { id: 'bodycap', name: 'شعيرات الجسم', info: 'يصلُ الدمُ إلى أوعيةٍ دمويةٍ دقيقةٍ تسمّى الشعيرات، فتنتقلُ الموادُّ الغذائيةُ والأكسجينُ عبرَ جدرانِها الرقيقةِ لتصلَ إلى الخلايا، وتمرّرُ الخلايا فضلاتِها إلى الدم.', objs: capBody.children, at: anchor(root, [0, -1.8, .3]) }
-  ];
+    { id: 'heart', name: 'القلب', info: 'عضلةٌ تضخُّ الدمَ إلى جميعِ أجزاءِ الجسم. جانبُه الأيمنُ يستقبلُ الدمَ غيرَ المؤكسجِ ويضخُّه إلى الرئتين، وجانبُه الأيسرُ يستقبلُ الدمَ المؤكسجَ ويضخُّه إلى الجسم. (إثراء: ينبضُ نحو ٧٢ مرّةً في الدقيقة)', objs: [H, RA, LA], at: anchor(book, [.25, .85, .55]) },
+    { id: 'lungcap', name: 'شعيرات دموية', info: 'في الرئةِ داخلَ الحويصلةِ الهوائيةِ يتمُّ تبادلُ الغازات؛ حيث ينتقلُ الأكسجينُ إلى الدم، وينتقلُ ثاني أكسيدِ الكربونِ إلى تجويفِ الحويصلةِ ثم إلى خارجِ الجسمِ مع هواءِ الزفير. يبدأُ الدمُ فيها غيرَ مؤكسجٍ (أزرق) وينتهي مؤكسجًا (أحمر).', objs: caps, at: anchor(book, [.9, 1.7, .2]) },
+    { id: 'lung', name: 'الرئة', info: 'يصلُ إليها الدمُ غيرُ المؤكسجِ من القلب، فيتخلّصُ من ثاني أكسيدِ الكربونِ ويُحمَّلُ بالأكسجين.', objs: lungs.children.slice(0, 2), at: anchor(book, [-.85, 2.15, .1]) },
+    { id: 'artery', name: 'شريان', info: 'يحملُ الدمَ المؤكسجَ (اللونُ الأحمر) من القلبِ إلى سائرِ أجزاءِ الجسم. (إثراء: هذا هو الشريانُ الأبهر، أكبرُ شرايينِ الجسم)', objs: aorta, at: anchor(book, [.05, 2.9, .1]) },
+    { id: 'vein', name: 'وريد', info: 'يحملُ الدمَ غيرَ المؤكسجِ (اللونُ الأزرق) من أجزاءِ الجسمِ إلى القلب. (إثراء: الوريدانِ الأجوفانِ العلويُّ والسفليّ)', objs: vena, at: anchor(book, [-.2, 2.9, .2]) },
+    { id: 'partery', name: 'الشريان الرئوي (إثراء)', info: 'يحملُ الدمَ غيرَ المؤكسجِ من القلبِ إلى الرئتين؛ لذا لونُه أزرقُ مع أنّه شريان، فالشريانُ هو ما يخرجُ من القلب.', objs: part, at: anchor(book, [-.3, 2.02, .35]), hidden: () => !extra.visible },
+    { id: 'pvein', name: 'الأوردة الرئوية (إثراء)', info: 'تحملُ الدمَ المؤكسجَ من الرئتين إلى القلب؛ لذا لونُها أحمرُ مع أنّها أوردة، فالوريدُ هو ما يعودُ إلى القلب.', objs: pvein, at: anchor(book, [.45, 1.35, .2]), hidden: () => !extra.visible },
+    { id: 'bodycap', name: 'شعيرات الجسم (إثراء)', info: 'يصلُ الدمُ إلى أوعيةٍ دمويةٍ دقيقةٍ تسمّى الشعيرات، فتنتقلُ الموادُّ الغذائيةُ والأكسجينُ عبرَ جدرانِها الرقيقةِ لتصلَ إلى الخلايا، وتمرّرُ الخلايا فضلاتِها إلى الدم.', objs: bodyCap, at: anchor(extra, [-1.65, -.35, .25]), hidden: () => !extra.visible },
+    { id: 'bodyvessels', name: 'أوعية الجسم (إثراء)', info: 'تتفرّعُ الشرايينُ إلى جميعِ أجزاءِ الجسم، وتعودُ الأوردةُ بالدمِ إلى القلب. يحتوي جسمُ الإنسانِ البالغِ على نحو ٥ لتراتٍ من الدم.', objs: ex, at: anchor(extra, [.48, -1.8, .1]), hidden: () => !extra.visible }];
+  const bookPose = { pos: [0, 1.85, 6.2], target: [0, 1.75, .1] }, bodyPose = { pos: [0, .6, 15], target: [0, .2, 0] };
   return {
-    root, parts,
-    update(dt) { t += dt * rate; heart.scale.setScalar(1 + Math.max(0, Math.sin(t * 7)) * .07); fb.rate = fr.rate = 5 * rate; fb.paths.forEach(p => p.speed = .3 * rate); fr.paths.forEach(p => p.speed = .3 * rate); fb.update(dt); fr.update(dt); },
-    cam: { pos: [0, .5, 9], target: [0, .3, 0] }, inpage: { pos: [0, .5, 9], target: [0, .3, 0] },
+    root, parts, pageBox: [-1.2, .7, -.5, 1.2, 3.0, .6],
+    update(dt) { beat += dt * rate * 1.2; const ph = beat % 1, pulse = Math.exp(-Math.pow((ph - .08) / .05, 2)) * .07 + Math.exp(-Math.pow((ph - .3) / .06, 2)) * .045; heart.scale.setScalar(HS * (1 + pulse));
+      const sp = .5 * rate * (1 + pulse * 6); cA.update(dt, sp); cV.update(dt, sp * .7); STEPS.forEach(S => S.f.update(dt * rate)); },
+    cam: bookPose, inpage: bookPose,
     controls: [
-      { type: 'steps', value: -1, steps: [{ t: '١- الدم غير المؤكسج إلى القلب', d: 'يتدفّقُ الدمُ غيرُ المؤكسجِ (غيرُ المحمّلِ بالأكسجين) إلى القلب.' }, { t: '٢- إلى الرئتين', d: 'يضخُّ القلبُ الدمَ غيرَ المؤكسجِ إلى الرئتين.' }, { t: '٣- تبادل الغازات', d: 'يتخلّصُ الدمُ في الرئتينِ من ثاني أكسيدِ الكربونِ ويُحمّلُ بالأكسجين.' }, { t: '٤- إلى الجسم', d: 'يتدفّقُ الدمُ المؤكسجُ (المحمّلُ بالأكسجين) إلى القلب، ثم يُضخُّ إلى سائرِ أجزاءِ الجسم.' }], on: i => { api.select && api.select(['vein', 'heartR', 'lungcap', 'artery'][i]); } },
-      { type: 'slider', label: 'نبض القلب', min: .5, max: 2.5, step: .1, value: 1, fmt: v => Math.round(v * 80) + ' نبضة/دقيقة', on: v => { rate = v; } }
+      { type: 'steps', value: -1, steps: [{ t: '١- الدم غير المؤكسج إلى القلب', d: 'يتدفّقُ الدمُ غيرُ المؤكسجِ (غيرُ المحمّلِ بالأكسجين) إلى القلب. (إثراء: عبرَ الوريدينِ الأجوفينِ إلى الأذينِ الأيمن)' }, { t: '٢- إلى الرئتين', d: 'يُضخُّ الدمُ غيرُ المؤكسجِ إلى الرئتين. (إثراء: من البطينِ الأيمنِ عبرَ الشريانِ الرئويّ)' }, { t: '٣- تبادل الغازات', d: 'يتخلّصُ الدمُ في الرئتينِ من ثاني أكسيدِ الكربونِ ويُحمّلُ بالأكسجين. (إثراء: في الرئتينِ نحو ٣٠٠ مليونِ حويصلةٍ هوائيّة)' }, { t: '٤- إلى الجسم', d: 'يتدفّقُ الدمُ المؤكسجُ (المحمّلُ بالأكسجين) إلى القلب، ثم يُضخُّ إلى سائرِ أجزاءِ الجسم. (إثراء: عبرَ الشريانِ الأبهر)' }],
+        on: i => { showStep(i); api.select && api.select(['vein', 'heart', 'lungcap', 'artery'][i]); } },
+      { type: 'button', label: '▶ المسار كاملًا', on: () => { showStep(-1); api.setStep && api.setStep(-1); } },
+      { type: 'button', label: '🧍 إثراء: الجسم كاملًا', toggle: true, on: v => { extra.visible = v; const p = v ? bodyPose : bookPose; api.flyTo(p.pos.map((x, i) => i === 2 && !v ? x : x), p.target); api.refreshParts && api.refreshParts(); } },
+      { type: 'button', label: '🫁 إظهار/إخفاء الرئتين', toggle: true, on: v => { lungs.visible = !v; } },
+      { type: 'slider', label: 'نبض القلب', min: .5, max: 2, step: .1, value: 1, fmt: v => Math.round(v * 72) + ' نبضة/دقيقة', on: v => { rate = v; } }
     ],
-    legend: [['#3456c8', 'دم غير مؤكسج'], ['#e0404a', 'دم مؤكسج']],
+    legend: [['#2a45a8', 'دم غير مؤكسج'], ['#c0121f', 'دم مؤكسج'], ['#36c24a', 'اتجاه جريان الدم']],
     quiz: [
       { q: 'أين يُضخُّ الدمُ غيرُ المؤكسج؟ المس الشعيراتِ هناك.', a: 'lungcap' },
-      { q: 'المس الوعاءَ الذي يحملُ الدمَ المؤكسجَ إلى الجسم.', a: 'artery' },
-      { q: 'المس الأوعيةَ الدقيقةَ التي تنقلُ الغذاءَ والأكسجينَ إلى خلايا الجسم.', a: 'bodycap' }
+      { q: 'المس الوعاءَ الذي يحملُ الدمَ المؤكسجَ من القلبِ إلى الجسم.', a: 'artery' },
+      { q: 'المس الوعاءَ الذي يحملُ الدمَ غيرَ المؤكسجِ إلى القلب.', a: 'vein' }
     ]
   };
 }
 
-/* ═════════ ٥) الجهاز الهيكلي والعضلي (ص ١٢٢–١٢٣) ═════════ */
+/* ═════════ ٥) الجهاز الهيكلي والعضلي (ص ١٢٢–١٢٣) — هيكلُ أرنبٍ واقعيّ ═════════ */
+function boneGeo(len, r, ends = 1.9) { const P = []; for (let i = 0; i <= 16; i++) { const t = i / 16, k = Math.pow(Math.abs(t - .5) * 2, 6); P.push(new THREE.Vector2(r * (.9 + (ends - .9) * k) * (1 + .05 * Math.sin(t * 20)), -t * len)); } P.unshift(new THREE.Vector2(0, 0)); P.push(new THREE.Vector2(0, -len)); return new THREE.LatheGeometry(P, 20); }
+function rabbitFur(op = .16, upright = false) { const m = new THREE.MeshPhysicalMaterial({ color: '#9a7350', roughness: .9, transparent: true, opacity: op, depthWrite: false, sheen: 1, sheenColor: new THREE.Color('#f3e2cc'), sheenRoughness: .4 }); const g = new THREE.Group();
+  const add = (geo, p, r, s) => { const o = new THREE.Mesh(geo, m); o.position.set(...p); if (r) o.rotation.set(...r); if (s) o.scale.set(...s); g.add(o); };
+  if (!upright) { add(organGeo(1, v => { v.x *= 2.3; v.y *= 1.05; v.z *= .95; if (v.x < -1) v.y *= 1.15; v.y += Math.max(0, v.x) * -.1; }), [-.2, 1.15, 0]); add(organGeo(.62, v => { v.x *= 1.55; if (v.x > .5) { v.y *= .8; v.z *= .8; } }), [2.35, 1.6, 0]);
+    for (const z of [-.18, .18]) add(organGeo(.25, v => { v.y *= 4; v.z *= .35; }), [1.9, 2.7, z], [0, 0, .5]); add(organGeo(.55, v => { v.x *= 1.6; v.y *= .9; v.z *= .7; }), [-1.6, .45, .3]); add(organGeo(.3, v => v.multiplyScalar(1)), [-2.55, 1.35, 0]); }
+  else { add(organGeo(.95, v => { v.y *= 1.45; v.z *= .9; if (v.y < 0) { v.x *= 1.15; v.z *= 1.1; } }), [0, .7, 0]); add(organGeo(.62, v => { v.z *= 1.4; v.y *= .95; }), [0, 2.55, .25]);
+    for (const s of [-1, 1]) { add(organGeo(.22, v => { v.y *= 4.5; v.z *= .4; }), [s * .32, 3.75, 0], [0, 0, s * -.15]); add(organGeo(.45, v => { v.z *= 1.5; v.y *= .8; }), [s * .6, -.7, .35]); } }
+  const pre = new THREE.MeshBasicMaterial({ colorWrite: false, transparent: true, opacity: 0, depthWrite: true }); [...g.children].forEach(o => { const d = o.clone(); d.material = pre; d.renderOrder = 20; d.raycast = () => {}; d.userData.glow = true; g.add(d); o.renderOrder = 21; }); return g; }
 export function skeletonModel(api) {
-  const root = new THREE.Group(); let run = false, t = 0;
-  const bone = mat('#efe6c8', { roughness: .55 });
-  const skull = mesh(new THREE.SphereGeometry(.55, 24, 18), bone, [2.4, 1.6, 0]); skull.scale.set(1.4, .9, .8); root.add(skull);
-  const spine = []; for (let i = 0; i < 16; i++) { const a = i / 15; const v = mesh(new THREE.CylinderGeometry(.12, .12, .16, 10), bone, [1.6 - a * 3.4, 1.35 + Math.sin(a * Math.PI) * .45, 0]); v.rotation.z = Math.PI / 2 + (a - .5) * .6; root.add(v); spine.push(v); }
-  const ribs = []; for (let i = 0; i < 7; i++) { const r = mesh(new THREE.TorusGeometry(.55 - Math.abs(i - 3) * .04, .035, 8, 24, Math.PI * 1.6), bone, [1.1 - i * .22, 1.1, 0], [0, Math.PI / 2, Math.PI * .7]); root.add(r); ribs.push(r); }
-  const pelvis = mesh(new THREE.TorusGeometry(.32, .08, 8, 18), bone, [-1.75, 1.3, 0], [0, Math.PI / 2, 0]); root.add(pelvis);
-  const front = new THREE.Group(); front.position.set(1.1, .9, 0); front.add(mesh(new THREE.CylinderGeometry(.06, .05, 1.4, 8), bone, [0, -.7, 0])); root.add(front);
-  // الرجل الخلفية: فخذ + ساق + قدم مع عضلتين ووتر
+  const root = new THREE.Group(); let run = false, t = 0; reseed(41);
+  const bone = tissue('#ece2c6', { kind: 'pore', bumpScale: .6, clearcoat: .25, roughness: .55, sheen: .2 });
+  const fur = rabbitFur(.4); root.add(fur);
+  const skull = mesh(organGeo(.44, v => { v.x *= 1.5; v.y *= .8; v.z *= .72; if (v.x > .2) { const k = 1 - (v.x - .2) * .5; v.y *= k; v.z *= k; } const e = Math.hypot(v.x - .15, v.y - .15); if (Math.abs(v.z) > .3 && e < .2) v.z *= .82 + e * .9; v.multiplyScalar(1 + fbm3(v.x * 6, v.y * 6, v.z * 6) * .02); }), bone, [2.4, 1.6, 0]); root.add(skull);
+  const jaw = mesh(organGeo(.24, v => { v.x *= 2; v.y *= .35; v.z *= .7; }), bone, [2.5, 1.32, 0], [0, 0, -.15]); root.add(jaw);
+  const spineC = curve([[2.0, 1.45, 0], [1.6, 1.55, 0], [.6, 1.85, 0], [-.6, 1.8, 0], [-1.6, 1.4, 0], [-2.3, 1.25, 0], [-2.7, 1.45, 0]]); const spine = [];
+  for (let i = 0; i < 30; i++) { const u = i / 29, p = spineC.getPointAt(u), tg = spineC.getTangentAt(u), s = u > .9 ? .6 : 1;
+    const v = mesh(organGeo(.1 * s, w => { w.y *= .75; w.x *= 1.3; if (w.y > .03) w.y += .08 * (1 - Math.abs(w.x) / .12) * s; }, 16, 12), bone, p.toArray()); v.rotation.z = Math.atan2(tg.y, tg.x) - 0; root.add(v); spine.push(v); }
+  const ribs = []; for (let i = 0; i < 12; i++) { const x = 1.3 - i * .14, top = spineC.getPointAt(.12 + i * .028), d = .55 - Math.abs(i - 4) * .035, h = .9 - i * .02;
+    for (const s of [-1, 1]) { const r = vessel([[top.x, top.y - .05, 0], [x - .05, top.y - .2, s * d * .9], [x - .15, top.y - h * .7, s * d], [x - .1, top.y - h, s * .08]], .03, .022, bone, 24, 8, .02); root.add(r); ribs.push(r); } }
+  const pelvis = mesh(organGeo(.35, v => { v.x *= 2.1; v.y *= .55; v.z *= .5; if (v.x < 0) v.y += v.x * -.25; }), bone, [-1.75, 1.3, .1], [0, 0, -.45]); root.add(pelvis);
+  const front = new THREE.Group(); front.position.set(1.1, .9, .2); root.add(front);
+  const scap = mesh(organGeo(.3, v => { v.y *= 1.3; v.z *= .15; }), bone, [.05, .45, 0], [0, 0, -.3]); front.add(scap);
+  front.add(mesh(boneGeo(.7, .05), bone, [0, 0, 0], [0, 0, -.25]), mesh(boneGeo(.75, .04), bone, [.17, -.68, 0], [0, 0, .05]), mesh(organGeo(.1, v => { v.x *= 2.2; v.y *= .5; }), bone, [.3, -1.42, 0]));
   const hip = new THREE.Group(); hip.position.set(-1.75, 1.2, .25); root.add(hip);
-  const femur = mesh(new THREE.CylinderGeometry(.08, .07, 1.1, 10), bone, [0, -.55, 0]); hip.add(femur);
+  const femur = mesh(boneGeo(1.1, .07), bone); hip.add(femur);
   const knee = new THREE.Group(); knee.position.set(0, -1.1, 0); hip.add(knee);
-  const shin = mesh(new THREE.CylinderGeometry(.06, .05, 1, 10), bone, [0, -.5, 0]); knee.add(shin);
-  const foot = mesh(new THREE.BoxGeometry(.7, .08, .12), bone, [.3, -1.02, 0]); knee.add(foot);
-  const mFront = mesh(new THREE.CapsuleGeometry(.14, .7, 8, 12), mat('#c83a3a', { roughness: .5 }), [.18, -.5, .05]); hip.add(mFront);
-  const mBack = mesh(new THREE.CapsuleGeometry(.16, .7, 8, 12), mat('#a82a32', { roughness: .5 }), [-.2, -.55, .05]); hip.add(mBack);
-  const tendon = mesh(new THREE.CylinderGeometry(.03, .03, .5, 6), mat('#f6f2ea'), [-.15, -.25, .05]); knee.add(tendon);
-  const lig = mesh(new THREE.SphereGeometry(.1, 12, 10), mat('#c9c0a0'), [0, 0, 0]); knee.add(lig);
+  const shin = mesh(boneGeo(1.0, .055), bone); knee.add(shin);
+  const foot = new THREE.Group(); foot.position.set(0, -1.0, 0); knee.add(foot); for (let k = 0; k < 4; k++) foot.add(mesh(boneGeo(.75, .025, 1.6), bone, [0, 0, (k - 1.5) * .05], [0, 0, Math.PI / 2 + .05]));
+  const musM = tissue('#b8323a', { kind: 'vein', bumpScale: 1.4, clearcoat: .6 }), musM2 = tissue('#9a2630', { kind: 'vein', bumpScale: 1.4, clearcoat: .6 });
+  const spindle = (r, l) => organGeo(r, v => { v.y *= l / r / 2; const k = 1 - Math.pow(Math.abs(v.y) / (l / 2), 2) * .55; v.x *= k; v.z *= k; }, 32, 24);
+  const mFront = mesh(spindle(.15, .95), musM, [.18, -.5, .06]); hip.add(mFront);
+  const mBack = mesh(spindle(.17, 1.0), musM2, [-.2, -.55, .06]); hip.add(mBack);
+  const tendon = mesh(boneGeo(.5, .025, 1.2), tissue('#f6f2ea', { kind: 'pore', clearcoat: 1 }), [-.15, 0, .06]); knee.add(tendon);
+  const lig = mesh(organGeo(.09, v => { v.y *= 1.5; }), tissue('#d8cfb0', { clearcoat: .8 }), [0, 0, .07]); knee.add(lig);
   const parts = [
-    { id: 'skull', name: 'الجمجمة', info: 'الجمجمةُ قاسيةٌ جدًّا لكي تحميَ الدماغَ الحسّاسَ من الإصابة، كما أنّها خفيفةُ الوزنِ لكي يسهلَ إبقاءُ الرأسِ منتصبًا.', objs: [skull], at: anchor(root, [2.6, 2.3, 0]) },
-    { id: 'spine', name: 'العمود الفقري (الفقرات)', info: 'سلسلةٌ من الفقراتِ تدعمُ الجسمَ وتحمي الحبلَ الشوكيّ.', objs: spine, at: anchor(root, [0, 2.1, 0]) },
-    { id: 'ribs', name: 'القفص الصدري (الأضلاع)', info: 'العظامُ في الجهازِ الهيكليِّ تحمي بعضَ الأعضاءِ الطريّة؛ فالقفصُ الصدريُّ يحمي القلبَ والرئتين.', objs: ribs, at: anchor(root, [.5, .55, .5]) },
-    { id: 'pelvis', name: 'الحوض', info: 'عظامٌ ترتبطُ بها عظامُ الأرجلِ الخلفية، وتتّصلُ بالعمودِ الفقريّ.', objs: [pelvis], at: anchor(root, [-1.75, 1.75, 0]) },
+    { id: 'skull', name: 'الجمجمة', info: 'الجمجمةُ قاسيةٌ جدًّا لكي تحميَ الدماغَ الحسّاسَ من الإصابة، كما أنّها خفيفةُ الوزنِ لكي يسهلَ إبقاءُ الرأسِ منتصبًا.', objs: [skull, jaw], at: anchor(root, [2.6, 2.2, 0]) },
+    { id: 'spine', name: 'العمود الفقري (الفقرات)', info: 'سلسلةٌ من الفقراتِ تدعمُ الجسمَ وتحمي الحبلَ الشوكيّ.', objs: spine, at: anchor(root, [0, 2.15, 0]) },
+    { id: 'ribs', name: 'القفص الصدري (الأضلاع)', info: 'العظامُ في الجهازِ الهيكليِّ تحمي بعضَ الأعضاءِ الطريّة؛ فالقفصُ الصدريُّ يحمي القلبَ والرئتين.', objs: ribs, at: anchor(root, [.5, .85, .6]) },
+    { id: 'pelvis', name: 'الحوض', info: 'عظامٌ ترتبطُ بها عظامُ الأرجلِ الخلفية، وتتّصلُ بالعمودِ الفقريّ.', objs: [pelvis], at: anchor(root, [-1.75, 1.7, .2]) },
     { id: 'femur', name: 'الفخذ', info: 'العظامُ نسيجٌ صلبٌ وخفيفٌ وقويّ، تتحرّكُ بسهولةٍ لكنّها لا تستطيعُ الحركةَ وحدَها.', objs: [femur, shin], at: anchor(hip, [.25, -.8, 0]) },
     { id: 'muscle', name: 'العضلات المتقابلة', info: 'العضلاتُ التي تسبّبُ الحركةَ تعملُ في أزواج؛ فعندما تنقبضُ عضلةٌ تسحبُ العظمَ المرتبطَ بها، وفي الوقتِ نفسِه تنبسطُ عضلةٌ أخرى. والعضلاتُ تسحبُ ولا تدفعُ أبدًا.', objs: [mFront, mBack], at: anchor(hip, [-.4, -.4, .2]) },
     { id: 'tendon', name: 'الوتر', info: 'الأوتارُ نسيجٌ يربطُ بينَ العظامِ والعضلات؛ فعندما تنقبضُ العضلةُ تسحبُ الوترَ الذي يحرّكُ العظم.', objs: [tendon], at: anchor(knee, [-.35, -.25, .1]) },
@@ -216,6 +299,7 @@ export function skeletonModel(api) {
     cam: { pos: [0, 1, 7.5], target: [0, .7, 0] }, inpage: { pos: [0, .9, 7.2], target: [0, .7, 0] },
     controls: [
       { type: 'button', label: '🐇 اجعل الأرنب يركض', toggle: true, on: on => { run = on; if (!on) pose(0); else api.toast('تُرسَلُ أوامرُ من الدماغِ إلى عضلاتِ الرجل: تنقبضُ العضلةُ الأماميةُ فترفعُ الرجل، ثم تنقبضُ الخلفيةُ فتسحبُها إلى أسفل.'); } },
+      { type: 'button', label: '🐇 إظهار/إخفاء جسم الأرنب', toggle: true, on: v => { fur.visible = !v; } },
       { type: 'slider', label: 'انقباض العضلة الأمامية', min: 0, max: 10, step: 1, value: 0, fmt: v => v < 3 ? 'منبسطة' : v < 7 ? 'نصف انقباض' : 'منقبضة', on: v => { run = false; pose(v / 10); } }
     ],
     quiz: [
@@ -229,18 +313,16 @@ export function skeletonModel(api) {
 
 /* ═════════ ٦) الجهاز العصبي والغدد الصماء (ص ١٢٤) ═════════ */
 export function nervousModel(api) {
-  const root = new THREE.Group(); let t = 0, sig = -1, fast = 0;
-  const fig = new THREE.Group(); root.add(fig); const fm = glass('#c9a27a', .18, { side: 2 });
-  fig.add(mesh(new THREE.SphereGeometry(.7, 24, 18), fm, [0, 2.6, .2])); const torso = mesh(new THREE.CapsuleGeometry(.85, 2, 10, 20), fm, [0, .6, 0]); torso.scale.z = .75; fig.add(torso);
-  for (const s of [-1, 1]) { fig.add(mesh(new THREE.ConeGeometry(.18, 1.4, 12), fm, [s * .3, 3.6, 0], [0, 0, s * -.15])); fig.add(mesh(new THREE.CapsuleGeometry(.18, 1.2, 6, 10), fm, [s * .55, -1.4, .2])); }
-  const brain = mesh(new THREE.SphereGeometry(.45, 28, 20), mat('#f29aa8', { map: noiseTexture('#f4a8b4', '#d97a8a', 1500, 128, 128, 4), roughness: .6 }), [0, 2.7, .1]); brain.scale.set(1.15, .85, 1); root.add(brain);
-  const eye = mesh(new THREE.SphereGeometry(.1, 14, 10), mat('#222'), [.35, 2.55, .75]); root.add(eye);
-  const cord = tube([[0, 2.3, 0], [0, 1.6, -.25], [0, .4, -.35], [0, -.6, -.2]], .07, mat('#f2d06a', { emissive: '#7a5a00', emissiveIntensity: .1 }), 40, 10); root.add(cord);
-  const nerves = []; const nM = mat('#e8b84a'); for (let i = 0; i < 6; i++) { const y = 1.8 - i * .45; for (const s of [-1, 1]) { const n = tube([[0, y, -.3], [s * .5, y - .15, 0], [s * .8, y - .4, .2]], .02, nM, 12, 5); root.add(n); nerves.push(n); } }
-  const legN = []; for (const s of [-1, 1]) { const n = tube([[0, -.6, -.2], [s * .5, -1.2, .15], [s * .55, -2, .25]], .03, nM, 16, 6); root.add(n); legN.push(n); }
-  const eyeN = tube([[.3, 2.55, .65], [.15, 2.65, .3]], .02, nM, 8, 5); root.add(eyeN);
-  const adrenal = []; for (const s of [-1, 1]) { const k = mesh(new THREE.SphereGeometry(.18, 16, 12), mat('#9a3a3a'), [s * .35, .05, -.3]); k.scale.set(.7, 1, .6); root.add(k); const a = mesh(new THREE.ConeGeometry(.12, .16, 12), mat('#f2c22a'), [s * .35, .28, -.3]); root.add(a); adrenal.push(a); }
-  const heart = mesh(new THREE.SphereGeometry(.22, 18, 14), mat('#d0303a'), [-.15, 1.2, .3]); root.add(heart);
+  const root = new THREE.Group(); let t = 0, sig = -1, fast = 0; reseed(51);
+  const fig = rabbitFur(.22, true); root.add(fig);
+  const brain = mesh(organGeo(.45, v => { v.x *= 1.15; v.y *= .85; const fold = Math.abs(noise3(v.x * 9, v.y * 9, v.z * 9)); v.multiplyScalar(1 - fold * .06); if (Math.abs(v.x) < .03) v.multiplyScalar(.94); }, 96, 72), tissue('#f0a3ae', { kind: 'vein', bumpScale: 1.6, roughness: .5 }), [0, 2.7, .1]); root.add(brain);
+  const eye = mesh(new THREE.SphereGeometry(.1, 24, 18), new THREE.MeshPhysicalMaterial({ color: '#1a0f0a', roughness: .05, clearcoat: 1 }), [.35, 2.55, .75]); root.add(eye);
+  const cord = vessel([[0, 2.3, 0], [0, 1.6, -.25], [0, .4, -.35], [0, -.6, -.2]], .075, .055, tissue('#f2c96a', { kind: 'pore', emissive: '#7a5a00', emissiveIntensity: .1 }), 60, 14, .02); root.add(cord);
+  const nerves = []; const nM = tissue('#e8a83a', { kind: 'pore', bumpScale: .3 }); const nt = []; for (let i = 0; i < 6; i++) { const y = 1.8 - i * .45; for (const s of [-1, 1]) { const n = vessel([[0, y, -.3], [s * .5, y - .15, 0], [s * .8, y - .4, .2]], .025, .012, nM, 16, 6); root.add(n); nerves.push(n); twigs(nt, V(s * .8, y - .4, .2), V(s, -.3, .3), .25, .01, 3, 1.3); } } const nTw = new THREE.Mesh(mergeGeos(nt), nM); root.add(nTw); nerves.push(nTw);
+  const legN = []; for (const s of [-1, 1]) { const n = vessel([[0, -.6, -.2], [s * .5, -1.2, .15], [s * .55, -2, .25]], .035, .015, nM, 24, 8); root.add(n); legN.push(n); }
+  const eyeN = vessel([[.3, 2.55, .65], [.15, 2.65, .3]], .022, .018, nM, 10, 6); root.add(eyeN);
+  const adrenal = []; for (const s of [-1, 1]) { const k = mesh(organGeo(.18, v => { v.x *= .7; v.z *= .6; if (v.x * s < -.05) v.x *= .7; }), tissue('#8a2f2a', { clearcoat: .9 }), [s * .35, .05, -.3]); root.add(k); const a = mesh(organGeo(.11, v => { v.y *= .7; if (v.y > 0) { v.x *= 1 - v.y * 3; v.z *= 1 - v.y * 2; } }), tissue('#f2b82a', { kind: 'pore' }), [s * .35, .26, -.3]); root.add(a); adrenal.push(a); }
+  const heart = mesh(organGeo(.22, v => { const y = v.y; const k = y < 0 ? 1 + y * 2 : 1; v.x *= k; v.z *= k * .9; v.y *= 1.2; }), tissue('#9a1f26'), [-.15, 1.2, .3], [0, 0, .4]); root.add(heart);
   const fox = new THREE.Group(); const fM = mat('#e07a2a'); fox.add(mesh(new THREE.CapsuleGeometry(.25, .7, 6, 12), fM, [0, 0, 0], [0, 0, Math.PI / 2])); fox.add(mesh(new THREE.ConeGeometry(.2, .45, 12), fM, [.6, .15, 0], [0, 0, -Math.PI / 2])); fox.add(mesh(new THREE.ConeGeometry(.12, .6, 10), mat('#f6e6d0'), [-.65, .1, 0], [0, 0, Math.PI / 2 + .3])); fox.position.set(3.6, -1.4, .5); root.add(fox);
   const pulse = mesh(new THREE.SphereGeometry(.09, 12, 10), mat('#ffffff', { emissive: '#ffee55', emissiveIntensity: 1.5 })); pulse.visible = false; root.add(pulse);
   const adr = new Flow(root, '#ffcc22', .045, 40); adr.addPath(curve([[.35, .3, -.3], [.2, .8, 0], [-.15, 1.2, .3]]), .6).addPath(curve([[-.35, .3, -.3], [-.3, .8, 0], [-.15, 1.2, .3]]), .6); adr.rate = 0;
