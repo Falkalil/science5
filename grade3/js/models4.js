@@ -1,5 +1,5 @@
 // مجسّمات الوحدة الثالثة: الأرض ومواردها
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, lerp, clamp, ease, terrain, strataTexture, proxy, smooth, fbm, tree, pine, cloud, arrowTube, house, noiseTexture, fbm3, tissueBump, organGeo } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, lerp, clamp, ease, terrain, strataTexture, proxy, smooth, fbm, tree, pine, cloud, arrowTube, house, noiseTexture, fbm3, tissueBump, organGeo, creature } from './kit.js';
 
 const ar = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const fmtNum = n => ar(Math.round(n).toLocaleString('en-US'));
@@ -545,20 +545,20 @@ export function fossilModel(api) {
   const frame = (g) => g.add(mesh(new THREE.BoxGeometry(CW + .1, 5.6, D + .1), glass('#ffffff', .1), [0, -.3, 0]));
   frame(coalC); frame(oilC);
   const sedTex = strataTexture([['#c9a878', 1], ['#b8956a', 1], ['#d4b88a', 1], ['#a8855a', 1]]);
-  const base = (g, c) => g.add(mesh(new THREE.BoxGeometry(CW, .8, D), mat(c), [0, -2.7, 0]));
+  const base = (g, c) => g.add(mesh(new THREE.BoxGeometry(CW, .8, D), mat(c, { bumpMap: tissueBump('vein', 16), bumpScale: 4, roughness: .95 }), [0, -2.7, 0]));
   base(coalC, '#8a7a6a'); base(oilC, '#8a7a6a');
   // الفحم
   const swampW = mesh(new THREE.BoxGeometry(CW, .9, D), glass('#2f86c9', .55), [0, 0, 0]); coalC.add(swampW);
-  const reeds = new THREE.Group(); coalC.add(reeds); for (let i = 0; i < 18; i++) { reeds.add(mesh(new THREE.CylinderGeometry(.03, .04, 1.4, 5), mat('#4f8f2a'), [(Math.random() - .5) * (CW - .4), 0, (Math.random() - .5) * (D - .4)], [(Math.random() - .5) * .3, 0, (Math.random() - .5) * .3])); }
+  const reeds = new THREE.Group(); coalC.add(reeds); const reedM = mat('#5f9a32', { bumpMap: tissueBump('vein', 9), bumpScale: 2 }), catM = mat('#6a3a1e', { bumpMap: tissueBump('pore', 9), bumpScale: 3 }); for (let i = 0; i < 18; i++) { const r = new THREE.Group(); r.position.set((Math.random() - .5) * (CW - .4), 0, (Math.random() - .5) * (D - .4)); r.rotation.set((Math.random() - .5) * .3, 0, (Math.random() - .5) * .3); r.add(mesh(new THREE.CylinderGeometry(.012, .03, 1.4, 8), reedM)); if (i % 3 === 0) r.add(mesh(new THREE.CapsuleGeometry(.045, .2, 6, 10), catM, [0, .62, 0])); else { const lf = mesh(new THREE.PlaneGeometry(.05, 1.1, 1, 6), mat('#6aa83a', { side: 2 }), [.03, .1, 0], [0, i, .15]); r.add(lf); } reeds.add(r); }
   for (let i = 0; i < 4; i++) reeds.add(mesh(new THREE.CircleGeometry(.18, 12), mat('#5fa83a', { side: 2 }), [(Math.random() - .5) * 2, 0, (Math.random() - .5) * 1.4], [-Math.PI / 2, 0, 0]));
-  const peat = mesh(new THREE.BoxGeometry(CW, 1, D), mat('#5a3a1e', { roughness: 1 }), [0, 0, 0]); coalC.add(peat);
+  const peat = mesh(new THREE.BoxGeometry(CW, 1, D), mat('#5a3a1e', { roughness: 1, bumpMap: tissueBump('vein', 21), bumpScale: 4 }), [0, 0, 0]); coalC.add(peat);
   const coalSed = mesh(new THREE.BoxGeometry(CW, 1, D), mat('#fff', { map: sedTex }), [0, 0, 0]); coalC.add(coalSed);
   // النفط والغاز
   const seaW = mesh(new THREE.BoxGeometry(CW, 1, D), glass('#2f86c9', .55), [0, 0, 0]); oilC.add(seaW);
-  const critters = new THREE.Group(); oilC.add(critters); for (let i = 0; i < 26; i++) critters.add(mesh(i % 3 ? new THREE.SphereGeometry(.05, 6, 5) : new THREE.ConeGeometry(.06, .2, 5), mat(i % 2 ? '#d8e8c0' : '#f2f2e0'), [(Math.random() - .5) * (CW - .3), 0, (Math.random() - .5) * (D - .3)]));
-  const deadL = mesh(new THREE.BoxGeometry(CW, 1, D), mat('#6a5a3a'), [0, 0, 0]); oilC.add(deadL);
+  const critters = new THREE.Group(); oilC.add(critters); for (let i = 0; i < 26; i++) { const c = creature(['🦐', '🐟', '🪼', '🦠', '🐌'][i % 5], .22 + (i % 3) * .05) || mesh(new THREE.SphereGeometry(.05, 6, 5), mat('#d8e8c0')); c.position.set((Math.random() - .5) * (CW - .3), 0, (Math.random() - .5) * (D - .3)); c.rotation.y = Math.random() * 6; critters.add(c); }
+  const deadL = mesh(new THREE.BoxGeometry(CW, 1, D), mat('#6a5a3a', { bumpMap: tissueBump('pore', 22), bumpScale: 4 }), [0, 0, 0]); oilC.add(deadL);
   const oilSed = mesh(new THREE.BoxGeometry(CW, 1, D), mat('#fff', { map: sedTex }), [0, 0, 0]); oilC.add(oilSed);
-  const oilPool = mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mat('#1e1610', { roughness: .2, metalness: .3 }), [0, 0, 0]); oilPool.scale.set(1.5, .45, 1.1); oilC.add(oilPool);
+  const oilPool = mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mat('#1e1610', { roughness: .08, metalness: .2, clearcoat: 1, clearcoatRoughness: .05 }), [0, 0, 0]); oilPool.scale.set(1.5, .45, 1.1); oilC.add(oilPool);
   const gasPool = mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mat('#e8e8f0', { transparent: true, opacity: .85 }), [0, 0, 0]); gasPool.scale.set(1.1, .3, .8); oilC.add(gasPool);
   const heatGlow = mesh(new THREE.BoxGeometry(CW, .3, D), new THREE.MeshBasicMaterial({ color: '#ff5a1a', transparent: true, opacity: 0 }), [0, -3.0, 0]); oilC.add(heatGlow);
   const rigs = new THREE.Group(); oilC.add(rigs); for (const x of [-.8, .8]) { const r = new THREE.Group(); for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + Math.PI / 4; r.add(mesh(new THREE.CylinderGeometry(.02, .02, 1.3, 4), mat('#555'), [Math.cos(a) * .15, .6, Math.sin(a) * .15], [Math.sin(a) * .2, 0, -Math.cos(a) * .2])); } r.add(mesh(new THREE.CylinderGeometry(.025, .025, 3, 6), mat('#333'), [0, -1.2, 0])); r.position.x = x; rigs.add(r); }

@@ -1,5 +1,5 @@
 // مجسّمات الصف السادس (٢): النباتات وأجهزة الجسم والأنظمة البيئية
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, cloud, arrowTube, noise3, tissue, vessel, mergeGeos, twigs, srnd, reseed, organGeo, fbm3, badge, ArrowFlow, CellFlow } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, cloud, arrowTube, noise3, tissue, vessel, mergeGeos, twigs, srnd, reseed, organGeo, fbm3, badge, ArrowFlow, CellFlow, tissueBump } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 
 /* ═════════ ١) دورة حياة نبات حزازي (ص ٨٦) ═════════ */
@@ -7,7 +7,10 @@ export function mossModel(api) {
   const root = new THREE.Group(); let step = -1, t = 0;
   const R = 2.6; const pos = i => { const a = Math.PI / 2 - i / 5 * Math.PI * 2; return [Math.cos(a) * R, Math.sin(a) * R * .8, 0]; };
   const leafM = mat('#3f9a3a', { roughness: .6 }), leafM2 = mat('#6cbf4a');
-  function moss(s = 1) { const g = new THREE.Group(); for (let i = 0; i < 14; i++) { const l = mesh(new THREE.ConeGeometry(.07, .5, 5), i % 2 ? leafM : leafM2); const a = i / 14 * Math.PI * 2; l.position.set(Math.cos(a) * .12, .25 + (i % 4) * .1, Math.sin(a) * .12); l.rotation.set(Math.sin(a) * .5, 0, -Math.cos(a) * .5); g.add(l); } g.add(mesh(new THREE.CylinderGeometry(.04, .05, .6, 6), mat('#5a8a3a'), [0, .3, 0])); for (let k = 0; k < 4; k++) g.add(tube([[0, 0, 0], [(k - 1.5) * .08, -.15, .05], [(k - 1.5) * .15, -.3, 0]], .01, mat('#8a6a4a'), 8, 4)); g.scale.setScalar(s); return g; }
+  const mlG = organGeo(1, v => { const t = (v.y + 1) / 2; v.y = t * .42; const w = Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.05)), .7) * (1 - t * .55) * .075; v.x *= w; v.z = v.z * .012 + t * t * .09 - Math.abs(v.x) * .4; }, 16, 20);
+  const stemM = tissue('#4f8a34', { kind: 'vein' }), rhM = tissue('#8a6a4a', { kind: 'vein' }); leafM.bumpMap = tissueBump('vein', 23); leafM.bumpScale = 2; leafM.side = 2; leafM2.bumpMap = leafM.bumpMap; leafM2.bumpScale = 2; leafM2.side = 2;
+  function moss(s = 1) { const g = new THREE.Group(); const N = 30; for (let i = 0; i < N; i++) { const t = i / N, a = i * 2.4; const l = mesh(mlG, i % 3 ? leafM : leafM2); l.position.set(0, .08 + t * .72, 0); l.rotation.order = 'YXZ'; l.rotation.set(1.1 - t * .75, a, 0); l.scale.setScalar(1.05 - t * .45); g.add(l); }
+    g.add(vessel([[0, 0, 0], [.01, .4, 0], [0, .82, 0]], .035, .02, stemM, 16, 8)); const rh = []; for (let k = 0; k < 5; k++) twigs(rh, V(0, .02, 0), V(Math.cos(k * 1.3) * .7, -1, Math.sin(k * 1.3) * .7), .16, .008, 3, 1.2, 4); g.add(new THREE.Mesh(mergeGeos(rh), rhM)); g.scale.setScalar(s); return g; }
   const stages = [];
   // 0 محفظة الأبواغ على ساق
   const s0 = new THREE.Group(); const m0 = moss(.8); s0.add(m0); const stalk = tube([[0, .5, 0], [.05, 1.1, 0], [0, 1.5, 0]], .025, mat('#c9a04a'), 12, 6); const caps = mesh(new THREE.CapsuleGeometry(.09, .22, 6, 10), mat('#b5772a'), [0, 1.62, 0]); s0.add(stalk, caps);
@@ -18,7 +21,7 @@ export function mossModel(api) {
   // 3 حزاز ورقي بفرعين ذكري وأنثوي
   const s3 = new THREE.Group(); const m3 = moss(1.2); s3.add(m3); const male = mesh(new THREE.CapsuleGeometry(.08, .35, 6, 10), mat('#7ab84a'), [-.25, 1.05, 0]); const female = mesh(new THREE.CapsuleGeometry(.08, .35, 6, 10), mat('#4a9a5a'), [.25, 1.05, 0]); s3.add(male, female);
   // 4 بويضة مخصبة ونموّ محفظة
-  const s4 = new THREE.Group(); const fem = mesh(new THREE.CapsuleGeometry(.22, .6, 8, 14), glass('#6fbf5a', .55), [0, .4, 0]); const egg = mesh(new THREE.SphereGeometry(.13, 14, 10), mat('#d93a3a'), [0, .3, 0]); s4.add(fem, egg); const sperm = []; for (let i = 0; i < 4; i++) { const s = mesh(new THREE.CapsuleGeometry(.025, .12, 4, 6), mat('#5a5ad9')); s.position.set(-.6 + i * .1, .7 - i * .1, 0); s4.add(s); sperm.push(s); }
+  const s4 = new THREE.Group(); const fem = mesh(new THREE.CapsuleGeometry(.22, .6, 8, 14), tissue('#9ad07a', { kind: 'pore', transparent: true, opacity: .45, depthWrite: false }), [0, .4, 0]); { const cells = new THREE.InstancedMesh(new THREE.SphereGeometry(.06, 12, 10), tissue('#4f9a3a', { kind: 'pore', bumpScale: 1.5 }), 400), o3 = new THREE.Object3D(); let n = 0; for (let r = 0; r <= 12; r++) { const y = -.5 + r * .083, rad = .24 * Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, Math.abs(y) - .3) / .24, 2))), k = Math.max(1, Math.round(rad * 2 * Math.PI / .1)); for (let j = 0; j < k; j++) { const a = (j + r * .5) / k * Math.PI * 2; if (Math.sin(a) > .15) continue; o3.position.set(Math.cos(a) * rad, y, Math.sin(a) * rad); o3.scale.setScalar(.85 + Math.random() * .3); o3.updateMatrix(); cells.setMatrixAt(n++, o3.matrix); } } cells.count = n; fem.add(cells); } const egg = mesh(new THREE.SphereGeometry(.13, 14, 10), mat('#d93a3a'), [0, .3, 0]); s4.add(fem, egg); const sperm = []; for (let i = 0; i < 4; i++) { const s = mesh(new THREE.CapsuleGeometry(.025, .12, 4, 6), mat('#5a5ad9')); s.position.set(-.6 + i * .1, .7 - i * .1, 0); s4.add(s); sperm.push(s); }
   [s0, s1, s2, s3, s4].forEach((g, i) => { g.position.set(...pos(i)); g.position.y -= .5; root.add(g); stages.push(g); });
   // أسهم الدورة
   const arrows = []; for (let i = 0; i < 5; i++) { const a0 = Math.PI / 2 - i / 5 * Math.PI * 2 - .35, a1 = a0 - .55; const pts = []; for (let k = 0; k <= 8; k++) { const a = lerp(a0, a1, k / 8); pts.push([Math.cos(a) * R * 1.05, Math.sin(a) * R * .85 - .1, -.3]); } const ar = arrowTube(pts, .05, '#e03030', .25); root.add(ar); arrows.push(ar); }
