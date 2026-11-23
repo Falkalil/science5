@@ -1,21 +1,24 @@
 // مجسّمات الوحدة الأولى (٢): الفراولة، الإخصاب، البيضة، الزهرة، دورة حياة النبات الزهري
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, cellTexture, noiseTexture, Flow, lerp, clamp, ease, tissue, tissueBump } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, cellTexture, noiseTexture, Flow, lerp, clamp, ease, tissue, tissueBump, organGeo, fbm3 } from './kit.js';
 
 // ورقة ثلاثية (فراولة)
+let _lfG = null;
+function leafletGeo() { if (_lfG) return _lfG; const sh = new THREE.Shape(); sh.moveTo(0, 0); const N = 64;
+  for (let i = 0; i <= N; i++) { const t = i / N * Math.PI; const tooth = (i > 3 && i < N - 3) ? (i % 2 ? .022 : 0) : 0; const r = .5 + tooth; sh.lineTo(Math.sin(t) * r * .72, (1 - Math.cos(t)) * r); }
+  const g = new THREE.ShapeGeometry(sh, 12), P = g.attributes.position; for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i); P.setZ(i, -x * x * .9 + Math.sin(y * 3) * .03 + Math.abs(Math.sin(x * 14 + y * 6)) * .012); } g.computeVertexNormals(); return (_lfG = g); }
 function trifoliate(size, m) {
   const g = new THREE.Group();
-  const sh = new THREE.Shape(); sh.moveTo(0, 0);
-  for (let i = 0; i <= 16; i++) { const t = i / 16 * Math.PI; const r = 0.5 + 0.04 * (i % 2); sh.lineTo(Math.sin(t) * r * 0.75, (1 - Math.cos(t)) * r); }
-  for (const a of [-0.75, 0, 0.75]) { const lf = mesh(new THREE.ShapeGeometry(sh, 4), m); lf.rotation.set(-1.05, 0, a); lf.position.set(Math.sin(a) * .08, 0, 0); g.add(lf); }
+  for (const a of [-0.75, 0, 0.75]) { const lf = mesh(leafletGeo(), m); lf.rotation.set(-1.05, 0, a); lf.position.set(Math.sin(a) * .08, 0, 0); g.add(lf); }
   g.scale.setScalar(size); return g;
 }
 function berry(s = 1) {
-  const pts = []; for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push(new THREE.Vector2(Math.sin(t * Math.PI) * (0.55 - 0.3 * t) * (t < .15 ? t / .15 * .9 + .1 : 1), -t * 1.0)); }
+  const pts = []; for (let i = 0; i <= 28; i++) { const t = i / 28; pts.push(new THREE.Vector2(Math.sin(t * Math.PI) * (0.55 - 0.3 * t) * (t < .15 ? t / .15 * .9 + .1 : 1), -t * 1.0)); }
   const g = new THREE.Group();
-  const b = mesh(new THREE.LatheGeometry(pts, 24), mat('#e8262e', { roughness: .35 })); g.add(b);
-  const seedM = mat('#f7e25a'); const sg = new THREE.SphereGeometry(0.025, 6, 4);
-  for (let i = 0; i < 40; i++) { const t = .15 + Math.random() * .75, a = Math.random() * 7; const r = Math.sin(t * Math.PI) * (0.55 - 0.3 * t) * 1.01; g.add(mesh(sg, seedM, [Math.cos(a) * r, -t, Math.sin(a) * r])); }
-  for (let k = 0; k < 5; k++) { const c = mesh(new THREE.ConeGeometry(0.1, 0.35, 4), mat('#3f8a2a'), [Math.cos(k * 1.26) * .2, 0.03, Math.sin(k * 1.26) * .2], [0, -k * 1.26, Math.PI / 2.4]); g.add(c); }
+  const bg = new THREE.LatheGeometry(pts, 40); { const P = bg.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); const a = Math.atan2(v.z, v.x), d = Math.abs(Math.sin(a * 7) * Math.sin(v.y * 22)); const k = 1 - d * .035; v.x *= k; v.z *= k; P.setXYZ(i, v.x, v.y, v.z); } bg.computeVertexNormals(); }
+  const b = mesh(bg, tissue('#d81e2a', { kind: 'pore', bumpScale: 1.4, roughness: .25, clearcoat: 1 })); g.add(b);
+  const seedM = tissue('#e8c84a', { kind: 'pore' }); const sg = new THREE.SphereGeometry(0.022, 8, 6).scale(1, 1.5, 1);
+  for (let i = 0; i < 60; i++) { const t = .12 + Math.random() * .8, a = Math.random() * 7; const r = Math.sin(t * Math.PI) * (0.55 - 0.3 * t) * .99; g.add(mesh(sg, seedM, [Math.cos(a) * r, -t, Math.sin(a) * r])); }
+  const capM = tissue('#3f8a2a', { kind: 'vein', side: 2 }); for (let k = 0; k < 8; k++) { const c = mesh(new THREE.ConeGeometry(0.07, 0.32, 6).scale(1, 1, .25), capM, [Math.cos(k * .785) * .18, 0.03, Math.sin(k * .785) * .18], [0, -k * .785, Math.PI / 2.2]); g.add(c); }
   g.scale.setScalar(s); return g;
 }
 
@@ -24,17 +27,17 @@ export function strawberryModel(api) {
   const root = new THREE.Group();
   const soil = mesh(new THREE.BoxGeometry(12, 0.08, 4), mat('#fff', { map: noiseTexture('#8a6646', '#6b4a2e', 5000, 256, 256, 3), roughness: 1, transparent: true, opacity: .9 }), [0, -0.04, 0]); root.add(soil);
   root.add(mesh(new THREE.BoxGeometry(12, 1.6, 4), glass('#7a5534', .3), [0, -0.88, 0]));
-  const leafM = mat('#3f9a3a', { side: 2, roughness: .6 }), stemM = mat('#6fae45', { roughness: .5 });
+  const leafM = new THREE.MeshPhysicalMaterial({ color: '#3f8f35', side: 2, roughness: .5, sheen: .5, sheenColor: new THREE.Color('#d0f0a0'), clearcoat: .3, bumpMap: tissueBump('vein', 9), bumpScale: 3 }), stemM = tissue('#6fae45', { kind: 'pore', bumpScale: 1.5 });
   // النبات الأصلي
   const mother = new THREE.Group(); mother.position.set(-4.2, 0, 0); mother.scale.setScalar(1.6); root.add(mother);
   for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, h = 1.4 + Math.random() * .6; const pts = [V(0, 0, 0), V(Math.cos(a) * .3, h * .6, Math.sin(a) * .3), V(Math.cos(a) * .7, h, Math.sin(a) * .7)]; mother.add(tube(pts, 0.04, stemM, 16, 6)); const tl = trifoliate(1.0, leafM); tl.position.copy(pts[2]); tl.rotation.y = -a + Math.PI / 2; mother.add(tl); }
   for (const [x, z, s] of [[.6, .7, .55], [1.0, .2, .5], [.3, -.8, .5], [-.7, .6, .45]]) { const b = berry(s); b.position.set(x, .55, z); b.rotation.z = .4; mother.add(b); mother.add(tube([[0, .2, 0], [x * .6, 1.0, z * .6], [x, .6, z]], .025, stemM, 10, 5)); }
-  const mRoots = new THREE.Group(); mother.add(mRoots); const rootM = mat('#d8c7a2');
+  const mRoots = new THREE.Group(); mother.add(mRoots); const rootM = tissue('#d8c7a2', { kind: 'vein' });
   for (let i = 0; i < 9; i++) { const a = i / 9 * 7; mRoots.add(tube([[0, 0, 0], [Math.cos(a) * .3, -.6, Math.sin(a) * .3], [Math.cos(a) * .55, -1.3, Math.sin(a) * .55]], .03, rootM, 10, 5)); }
   // الساق الجارية والنباتات الجديدة
   const runnerPts = [V(-4.0, 0.3, 0.2), V(-2.8, 0.9, 0.6), V(-1.4, 0.15, 0.4), V(-0.2, 0.02, 0.2), V(1.4, 0.6, -0.2), V(2.8, 0.1, -0.1), V(4.2, 0.02, 0)];
   const runnerCurve = curve(runnerPts);
-  let runner = null; const runnerM = mat('#7cbf4a', { roughness: .4 });
+  let runner = null; const runnerM = tissue('#7a9f3a', { kind: 'pore', bumpScale: 1.5 });
   function plantlet() { const g = new THREE.Group(); for (let i = 0; i < 4; i++) { const a = i / 4 * 7 + .3, h = 1.0; const pts = [V(0, 0, 0), V(Math.cos(a) * .2, h * .6, Math.sin(a) * .2), V(Math.cos(a) * .5, h, Math.sin(a) * .5)]; g.add(tube(pts, 0.03, stemM, 12, 5)); const tl = trifoliate(.8, leafM); tl.position.copy(pts[2]); tl.rotation.y = -a + Math.PI / 2; g.add(tl); } const rs = new THREE.Group(); for (let i = 0; i < 6; i++) { const a = i / 6 * 7; rs.add(tube([[0, 0, 0], [Math.cos(a) * .2, -.4, Math.sin(a) * .2], [Math.cos(a) * .35, -.9, Math.sin(a) * .35]], .025, rootM, 8, 4)); } g.add(rs); g.userData.roots = rs; return g; }
   const p1 = plantlet(), p2 = plantlet(); p1.position.copy(runnerCurve.getPointAt(0.52)).setY(0); p2.position.copy(runnerCurve.getPointAt(1)).setY(0); root.add(p1, p2);
   let day = 18, cut = false;
@@ -76,22 +79,22 @@ export function strawberryModel(api) {
 export function fertilModel(api) {
   const root = new THREE.Group();
   // البيضة (مشيج مؤنث)
-  const eggM = glass('#4da3e8', .82, { roughness: .25, depthWrite: true });
-  const egg = mesh(new THREE.SphereGeometry(1.25, 64, 48), eggM, [-1.6, 1.4, 0]); root.add(egg);
-  const nucM = glass('#38b6a6', .9, { depthWrite: true });
+  const eggM = tissue('#5aa8e6', { kind: 'pore', transparent: true, opacity: .85, roughness: .25, bumpScale: .25 });
+  const egg = mesh(organGeo(1.25, v => v.multiplyScalar(1 + fbm3(v.x * 2, v.y * 2, v.z * 2) * .03), 80, 60), eggM, [-1.6, 1.4, 0]); root.add(egg);
+  const nucM = tissue('#3aa89a', { kind: 'pore', transparent: true, opacity: .9 });
   const nuc = mesh(new THREE.SphereGeometry(0.42, 32, 24), nucM, [-1.6, 1.4, 0.75]); root.add(nuc);
   const chrG = new THREE.CapsuleGeometry(0.05, 0.38, 4, 8);
   const chrF = [mesh(chrG, mat('#2fd17a', { emissive: '#0c5', emissiveIntensity: .3 })), mesh(chrG, mat('#2fd17a', { emissive: '#0c5', emissiveIntensity: .3 }))];
   chrF.forEach((c, i) => { c.position.set(-.1 + i * .2, 0, .4); c.rotation.z = .5 + i * .3; nuc.add(c); });
   // الحيوان المنوي (مشيج مذكر)
-  function sperm() { const g = new THREE.Group(); const head = mesh(new THREE.SphereGeometry(0.22, 24, 16), mat('#d4552b', { roughness: .35 })); head.scale.set(1, 1.25, .8); g.add(head); const tail = new THREE.Group(); g.add(tail); g.userData = { tail, head }; return g; }
+  function sperm() { const g = new THREE.Group(); const head = mesh(new THREE.SphereGeometry(0.22, 32, 24), tissue('#d4552b', { kind: 'pore', roughness: .3 })); head.scale.set(1, 1.25, .8); g.add(head); const tail = new THREE.Group(); g.add(tail); g.userData = { tail, head }; return g; }
   function wiggle(s, t) { const tl = s.userData.tail; tl.clear(); const pts = []; for (let i = 0; i <= 10; i++) { const y = 0.2 + i * 0.22; pts.push(V(Math.sin(t * 8 - i * .8) * .12 * (i / 10), y, 0)); } tl.add(tube(pts, 0.025, mat('#e8a35a'), 20, 5)); }
   const sp = sperm(); root.add(sp);
   const spMid = [];
   const chrM = mesh(chrG, mat('#ff4a3a', { emissive: '#a00', emissiveIntensity: .3 })); chrM.visible = false; nuc.add(chrM);
   // اللاقحة النامية: كرات خلايا
   const emb = new THREE.Group(); root.add(emb); emb.position.set(-1.6, 1.4, 0);
-  const cellM = glass('#7aa7e0', .9, { depthWrite: true, roughness: .35 });
+  const cellM = tissue('#7aa7e0', { kind: 'pore', transparent: true, opacity: .92, roughness: .3 });
   let stage = 0, divs = 0, tSt = 0;
   function buildEmb(n) {
     emb.clear(); if (n <= 0) return; const count = Math.pow(2, n); const R = 1.25;
@@ -153,17 +156,17 @@ export function fertilModel(api) {
 export function eggModel(api) {
   const root = new THREE.Group();
   const prof = []; for (let i = 0; i <= 48; i++) { const t = i / 48 * Math.PI; const y = -Math.cos(t); prof.push(new THREE.Vector2(Math.sin(t) * (1 - 0.18 * y) * 1.0, y * 1.32)); }
-  const shellM = mat('#f1dcc0', { roughness: .55, side: 2, map: noiseTexture('#f3dfc3', '#e3c69f', 1500, 256, 256, 2) });
+  const shellM = new THREE.MeshPhysicalMaterial({ color: '#fff', roughness: .6, side: 2, sheen: .3, map: noiseTexture('#f0d4b0', '#d9b08a', 1500, 256, 256, 2), bumpMap: tissueBump('pore', 5), bumpScale: 1.2 });
   const innerM = mat('#fffaf2', { side: 1, roughness: .8 });
   const halves = [];
   for (const s of [0, 1]) {
     const g = new THREE.Group();
-    const gl = new THREE.LatheGeometry(prof.filter((p, i) => s ? i >= 22 : i <= 26), 64);
+    const gl = new THREE.LatheGeometry(prof.filter((p, i) => s ? i >= 22 : i <= 26), 96); { const P = gl.attributes.position, n = s ? 27 : 27; for (let k = 0; k < P.count; k++) { const row = Math.floor(k / (s ? 27 : 27)); } const pos = P; let ymin = Infinity, ymax = -Infinity; for (let k = 0; k < pos.count; k++) { const y = pos.getY(k); ymin = Math.min(ymin, y); ymax = Math.max(ymax, y); } const edge = s ? ymin : ymax; for (let k = 0; k < pos.count; k++) { const y = pos.getY(k); if (Math.abs(y - edge) < 1e-4) { const a = Math.atan2(pos.getZ(k), pos.getX(k)); pos.setY(k, y + (s ? 1 : -1) * (Math.abs(Math.sin(a * 9)) * .12 + Math.abs(Math.sin(a * 23)) * .05)); } } gl.computeVertexNormals(); }
     g.add(new THREE.Mesh(gl, shellM)); const inn = new THREE.Mesh(gl, innerM); inn.scale.setScalar(.97); g.add(inn);
     root.add(g); halves.push(g);
   }
-  const white = mesh(new THREE.SphereGeometry(1, 48, 32), glass('#f4fbff', .35, { roughness: .05, metalness: .1 })); white.scale.set(.93, 1.2, .93); root.add(white);
-  const yolk = mesh(new THREE.SphereGeometry(0.5, 48, 32), mat('#ffaa14', { roughness: .25, emissive: '#c55a00', emissiveIntensity: .15 }), [0, -0.1, 0]); root.add(yolk);
+  const white = mesh(organGeo(1, v => v.multiplyScalar(1 + fbm3(v.x * 1.5, v.y * 1.5, v.z * 1.5) * .06), 64, 48), new THREE.MeshPhysicalMaterial({ color: '#fbf6e0', roughness: .05, transparent: true, opacity: .55, clearcoat: 1, depthWrite: false, sheen: .4 })); white.scale.set(.93, 1.2, .93); root.add(white);
+  const yolk = mesh(new THREE.SphereGeometry(0.5, 64, 48), new THREE.MeshPhysicalMaterial({ color: '#ffa010', roughness: .2, clearcoat: 1, clearcoatRoughness: .1, sheen: .5, sheenColor: new THREE.Color('#ffe080'), emissive: '#c55a00', emissiveIntensity: .12 }), [0, -0.1, 0]); root.add(yolk);
   // بيضة الضفدع
   const frog = new THREE.Group(); root.add(frog); frog.visible = false;
   const jelly = mesh(new THREE.SphereGeometry(1.2, 48, 32), glass('#cfeee0', .38, { roughness: 0.02 })); frog.add(jelly);
