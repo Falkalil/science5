@@ -1,5 +1,5 @@
 // مجسّمات الوحدة الثالثة: الأرض ومواردها
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, lerp, clamp, ease, terrain, strataTexture, proxy, smooth, fbm, tree, pine, cloud, arrowTube, house, noiseTexture } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, lerp, clamp, ease, terrain, strataTexture, proxy, smooth, fbm, tree, pine, cloud, arrowTube, house, noiseTexture, fbm3, tissueBump, organGeo } from './kit.js';
 
 const ar = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const fmtNum = n => ar(Math.round(n).toLocaleString('en-US'));
@@ -250,18 +250,21 @@ export function layersModel(api) {
 }
 
 /* ───────────── ص ١٥١: حركة الصفائح ───────────── */
+let _mtnM = null;
 export function platesModel(api) {
   const root = new THREE.Group();
   const D = 4, TH = .7;
-  const asth = mesh(new THREE.BoxGeometry(14, 1.6, D), mat('#c8442a', { roughness: .8, emissive: '#7a1a0a', emissiveIntensity: .25 }), [0, -1.5, 0]); root.add(asth);
+  const asth = mesh(new THREE.BoxGeometry(14, 1.6, D), mat('#c8442a', { roughness: .7, emissive: '#7a1a0a', emissiveIntensity: .35, bumpMap: tissueBump('vein', 14), bumpScale: 2 }), [0, -1.5, 0]); root.add(asth);
   const plateTex = strataTexture([['#7a5a3a', 1], ['#9a7a52', 1], ['#6a4a2e', 1]]);
-  function plate(w) { const g = new THREE.Group(); const b = mesh(new THREE.BoxGeometry(w, TH, D), [mat('#fff', { map: plateTex }), mat('#fff', { map: plateTex }), mat('#6aa04a'), mat('#6a4a2e'), mat('#fff', { map: plateTex }), mat('#fff', { map: plateTex })]); g.add(b); g.userData.body = b; return g; }
+  function plate(w) { const g = new THREE.Group(); const b = mesh(new THREE.BoxGeometry(w, TH, D), [mat('#fff', { map: plateTex }), mat('#fff', { map: plateTex }), mat('#6aa04a'), mat('#6a4a2e'), mat('#fff', { map: plateTex }), mat('#fff', { map: plateTex })]); g.add(b); g.userData.body = b;
+    const tg = new THREE.PlaneGeometry(w, D, 90, 50); tg.rotateX(-Math.PI / 2); { const P = tg.attributes.position, col = new Float32Array(P.count * 3), c = new THREE.Color(); for (let i = 0; i < P.count; i++) { const x = P.getX(i), z = P.getZ(i), e = Math.min(1, (w / 2 - Math.abs(x)) * 4, (D / 2 - Math.abs(z)) * 4); const h = Math.max(0, fbm3(x * .7 + w, 0, z * .7) * .28 + .05) * Math.max(0, e); P.setY(i, h); c.set('#6c9a46').lerp(new THREE.Color('#9a8a5a'), THREE.MathUtils.clamp(h * 4, 0, 1) * .6).lerp(new THREE.Color('#4f7a34'), Math.max(0, fbm3(x * 3, 1, z * 3)) * .8); col.set([c.r, c.g, c.b], i * 3); } tg.setAttribute('color', new THREE.BufferAttribute(col, 3)); tg.computeVertexNormals(); }
+    const top = new THREE.Mesh(tg, new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .9, bumpMap: tissueBump('pore', 15), bumpScale: 3 })); top.position.y = TH / 2 + .005; top.receiveShadow = true; g.add(top); return g; }
   const L = plate(5.6), R = plate(5.6); root.add(L, R); L.position.y = R.position.y = -.35;
   const magmaM = mat('#ff5a1a', { emissive: '#ff3a00', emissiveIntensity: .9, roughness: .4 });
   const magma = mesh(new THREE.BoxGeometry(1, 1, D), magmaM); root.add(magma);
   const ocean = mesh(new THREE.BoxGeometry(1, 1, D), glass('#2f86c9', .7)); root.add(ocean);
   const floorM = mat('#5a5a6a'); const floor = mesh(new THREE.BoxGeometry(1, .2, D), floorM); root.add(floor);
-  const mtn = [L, R].map(p => { const m = new THREE.Group(); for (let i = 0; i < 6; i++) m.add(mesh(new THREE.ConeGeometry(.5 + Math.random() * .3, 1, 6), mat('#8a7a62', { flatShading: true }), [0, 0, -D / 2 + .4 + i * .65])); p.add(m); return m; });
+  const mtn = [L, R].map(p => { const m = new THREE.Group(); for (let i = 0; i < 6; i++) m.add(mesh(organGeo(1, v => { const y = v.y; v.y = (v.y + 1) / 2 - .5; const r = (.5 - v.y) * (1 + fbm3(v.x * 3 + i, v.y * 3, v.z * 3) * .35); v.x *= r * (.55 + i % 3 * .1); v.z *= r * (.55 + i % 3 * .1); }, 32, 24), _mtnM || (_mtnM = mat('#7e7060', { bumpMap: tissueBump('vein', 16), bumpScale: 5, roughness: .95 })), [0, 0, -D / 2 + .4 + i * .65])); p.add(m); return m; });
   const arrows = [L, R].map((p, k) => { const a = mesh(new THREE.ConeGeometry(.22, .6, 12), mat('#e8323a'), [0, TH / 2 + .35, D / 2 - .5], [0, 0, k ? -Math.PI / 2 : Math.PI / 2]); p.add(a); return a; });
   const conv = new Flow(root, '#ffb070', .07, 120); conv.rate = 6;
   for (const s of [-1, 1]) conv.addPath(curve([[0, -2.2, 0], [0, -.8, 0], [s * 2.5, -.95, .3], [s * 5, -1.6, .3], [s * 4, -2.25, 0], [s * 1, -2.25, 0], [0, -2.2, 0]]), .1);
@@ -480,12 +483,14 @@ export function volcanoModel(api) {
   const ground = mesh(new THREE.CylinderGeometry(7, 7, .3, 64, 1, false, Math.PI / 2, Math.PI), mat('#c9b8a0', { roughness: 1 }), [0, -.15, 0]); root.add(ground);
   const crust = mesh(new THREE.BoxGeometry(14, 3.2, .05), mat('#fff', { map: strataTexture([['#7a6a5a', 1], ['#9a8a76', 1], ['#7a6a5a', 1], ['#b0a08a', 1]]) }), [0, -1.9, 0]); root.add(crust);
   const chamber = mesh(new THREE.SphereGeometry(1, 32, 20), mat('#ff5a1a', { emissive: '#ff3a00', emissiveIntensity: .9 }), [0, -2.4, .04]); chamber.scale.set(2.6, .8, .05); root.add(chamber);
-  const conduitM = mat('#ff6a1a', { emissive: '#ff4000', emissiveIntensity: .9 });
+  const conduitM = mat('#ff6a1a', { emissive: '#ff4000', emissiveIntensity: .9, bumpMap: tissueBump('vein', 13), bumpScale: 2, roughness: .4 });
   let conduit, side, cone, face, sideCone;
   function build() {
     vol.clear();
     const prof = []; for (let i = 0; i <= 30; i++) { const t = i / 30; const r = lerp(R, .45, t); prof.push(new THREE.Vector2(r, H * Math.pow(t, .85) + (t > .97 ? -.15 : 0))); }
-    cone = new THREE.Mesh(new THREE.LatheGeometry(prof, 64, Math.PI / 2, Math.PI), mat('#fff', { map: noiseTexture('#b8a892', '#8f8070', 3000, 256, 256, 3), roughness: .95, side: 2 })); vol.add(cone);
+    const cg = new THREE.LatheGeometry(prof, 128, Math.PI / 2, Math.PI); { const P = cg.attributes.position, v = new THREE.Vector3(), col = new Float32Array(P.count * 3), c = new THREE.Color(); for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); const r = Math.hypot(v.x, v.z), an = Math.atan2(v.z, v.x), edge = THREE.MathUtils.smoothstep(Math.abs(v.z) / Math.max(r, .01), 0, .2), hy = v.y / H; const k = 1 + edge * ((fbm3(v.x * .9, v.y * .9, v.z * .9) * .07) + Math.abs(Math.sin(an * 16 + fbm3(v.x, v.y, v.z) * 3)) * .035 * (1 - hy)); v.x *= k; v.z *= k; P.setXYZ(i, v.x, v.y, v.z);
+      c.set('#8a7c6c').lerp(new THREE.Color('#5e544c'), THREE.MathUtils.smoothstep(hy, .45, .95)); if (hy < .35 && fbm3(v.x * 3, v.y * 3, v.z * 3) > .1) c.lerp(new THREE.Color('#6f7a4a'), .55); col.set([c.r, c.g, c.b], i * 3); } cg.setAttribute('color', new THREE.BufferAttribute(col, 3)); cg.computeVertexNormals(); }
+    cone = new THREE.Mesh(cg, new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .95, side: 2, bumpMap: noiseTexture('#b8a892', '#5f5248', 3000, 256, 256, 3), bumpScale: 4 })); vol.add(cone);
     // وجه القطع بطبقات
     const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
     for (let y = 0; y < 256; y++) for (let x = 0; x < 512; x++) { const X = (x / 512 * 2 - 1) * R, Y = (1 - y / 256) * H; const surf = H * Math.pow(clamp(1 - (Math.abs(X) - .45) / (R - .45)), 1 / .85); const d = surf - Y; const band = Math.floor(d / .22) % 2; g.fillStyle = d < 0 ? 'rgba(0,0,0,0)' : band ? '#9a8a78' : '#7a6c5e'; g.fillRect(x, y, 1, 1); }

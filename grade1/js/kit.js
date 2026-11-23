@@ -23,6 +23,7 @@ export function realScene(scene) { scene.environment = studioEnv(); scene.enviro
 export function mat(color, o = {}) {
   const base = { color, roughness: 0.55, metalness: 0.0, clearcoat: .18, clearcoatRoughness: .45, sheen: .25, sheenRoughness: .6, sheenColor: new THREE.Color(color).lerp(new THREE.Color('#ffffff'), .5) };
   if (!o.flatShading && !o.map && !o.vertexColors && o.bump !== false) { base.bumpMap = microBump(); base.bumpScale = .35; }
+  else if (o.map && !o.bumpMap && o.bump !== false && o.map.isCanvasTexture) { base.bumpMap = o.map; base.bumpScale = 2.5; }
   const q = Object.assign({}, o); delete q.bump;
   return new THREE.MeshPhysicalMaterial(Object.assign(base, q));
 }

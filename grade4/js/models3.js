@@ -1,5 +1,5 @@
 // مجسّمات الوحدة الثانية: دورة الماء، دورة الكربون، دورة النيتروجين، التعاقب الأولي
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, lerp, clamp, ease, terrain, strataTexture, proxy, smooth, fbm, tree, pine, cloud, arrowTube, house, deer, noiseTexture } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, lerp, clamp, ease, terrain, strataTexture, proxy, smooth, fbm, tree, pine, cloud, arrowTube, house, deer, noiseTexture, organGeo, fbm3, tissueBump, mergeGeos } from './kit.js';
 
 /* ───────────── ص ١١٧: دورة الماء ───────────── */
 export function waterModel(api) {
@@ -251,6 +251,7 @@ export function nitrogenModel(api) {
 }
 
 /* ───────────── ص ١٣٢: مراحل التعاقب الأولي ───────────── */
+const _rockM = [];
 export function successionModel(api) {
   const root = new THREE.Group();
   const S = 6;
@@ -258,15 +259,16 @@ export function successionModel(api) {
   // قاعدة الصخر
   const bed = mesh(new THREE.BoxGeometry(S, 1.4, S), mat('#fff', { map: noiseTexture('#8f8a80', '#6a655c', 4000, 256, 256, 6), roughness: .95 }), [0, -.7, 0]); root.add(bed);
   const cobbles = new THREE.Group(); root.add(cobbles);
-  for (let i = 0; i < 40; i++) { const r = .22 + Math.random() * .3; const c = mesh(new THREE.DodecahedronGeometry(r, 0), mat(['#a8a296', '#8e887c', '#b8b2a6'][i % 3], { flatShading: true }), [(Math.random() - .5) * (S - .6), r * .5, (Math.random() - .5) * (S - .6)], [Math.random() * 3, Math.random() * 3, 0]); c.userData.r = r; cobbles.add(c); }
+  for (let i = 0; i < 40; i++) { const r = .22 + Math.random() * .3; const c = mesh(organGeo(r, v => { v.y *= .7; v.multiplyScalar(1 + fbm3(v.x * 5 + i, v.y * 5, v.z * 5) * .35); }, 24, 18), _rockM[i % 3] || (_rockM[i % 3] = mat(['#a8a296', '#8e887c', '#b8b2a6'][i % 3], { bumpMap: tissueBump('pore', 17 + i % 3), bumpScale: 4, roughness: .95 })), [(Math.random() - .5) * (S - .6), r * .5, (Math.random() - .5) * (S - .6)], [Math.random() * 3, Math.random() * 3, 0]); c.userData.r = r; cobbles.add(c); }
   const soilM = mat('#fff', { map: noiseTexture('#5a3e26', '#3e2a18', 3000), roughness: 1 });
   const soil = mesh(new THREE.BoxGeometry(S, 1, S), soilM, [0, 0, 0]); root.add(soil);
   const lichens = new THREE.Group(); root.add(lichens);
   cobbles.children.forEach(c => { for (let k = 0; k < 3; k++) { const d = mesh(new THREE.CircleGeometry(.08 + Math.random() * .1, 10), mat(['#c9d23a', '#e0a83a', '#6aa04a'][k], { side: 2 })); const n = V(Math.random() - .5, .8, Math.random() - .5).normalize(); d.position.copy(c.position).add(n.clone().multiplyScalar(c.userData.r * .85)); d.lookAt(d.position.clone().add(n)); lichens.add(d); } });
-  const grass = new THREE.Group(); root.add(grass); const gM = mat('#7cb342'), gM2 = mat('#a5c24a');
-  for (let i = 0; i < 260; i++) grass.add(mesh(new THREE.ConeGeometry(.04, .3 + Math.random() * .25, 4), i % 2 ? gM : gM2, [(Math.random() - .5) * (S - .2), .15, (Math.random() - .5) * (S - .2)]));
+  const grass = new THREE.Group(); root.add(grass); const gM = mat('#7cb342', { side: 2 }), gM2 = mat('#a5c24a', { side: 2 });
+  const bladeG = (() => { const geos = []; for (let k = 0; k < 5; k++) { const g = new THREE.PlaneGeometry(.035, .4, 1, 5), P = g.attributes.position; for (let j = 0; j < P.count; j++) { const y = P.getY(j) + .2; P.setX(j, P.getX(j) * (1 - y / .45)); P.setZ(j, y * y * .9); } g.translate(0, .2, 0); g.rotateY(k * 1.25); g.translate(Math.cos(k * 2) * .03, 0, Math.sin(k * 2) * .03); geos.push(g); } return mergeGeos(geos); })();
+  for (let i = 0; i < 260; i++) grass.add(mesh(bladeG, i % 2 ? gM : gM2, [(Math.random() - .5) * (S - .2), .15, (Math.random() - .5) * (S - .2)]));
   const flowers = new THREE.Group(); root.add(flowers); for (let i = 0; i < 30; i++) flowers.add(mesh(new THREE.SphereGeometry(.05, 6, 5), mat(['#f2d14a', '#e85a8a', '#ffffff'][i % 3]), [(Math.random() - .5) * (S - .4), .38, (Math.random() - .5) * (S - .4)]));
-  const shrubs = new THREE.Group(); root.add(shrubs); for (let i = 0; i < 22; i++) shrubs.add(mesh(new THREE.IcosahedronGeometry(.25 + Math.random() * .2, 1), mat(i % 2 ? '#5f8f3a' : '#7a9a42', { flatShading: true }), [(Math.random() - .5) * (S - .6), .25, (Math.random() - .5) * (S - .6)]));
+  const shrubs = new THREE.Group(); root.add(shrubs); for (let i = 0; i < 22; i++) shrubs.add(mesh(organGeo(.25 + Math.random() * .2, v => { v.y *= .8; v.multiplyScalar(1 + fbm3(v.x * 9 + i, v.y * 9, v.z * 9) * .3); }, 28, 20), mat(i % 2 ? '#5f8f3a' : '#7a9a42', { bumpMap: tissueBump('pore', 4), bumpScale: 4, roughness: .8 }), [(Math.random() - .5) * (S - .6), .25, (Math.random() - .5) * (S - .6)]));
   const young = new THREE.Group(); root.add(young); for (let i = 0; i < 9; i++) { const t = i % 2 ? pine(1.2) : tree(1.1, '#4f8f3a'); t.position.set((Math.random() - .5) * (S - 1), 0, (Math.random() - .5) * (S - 1)); young.add(t); }
   const forest = new THREE.Group(); root.add(forest); for (let i = 0; i < 12; i++) { const t = tree(2.4 + Math.random() * .6, ['#2f6e2f', '#3d7f34', '#2a5f2a'][i % 3]); t.position.set(((i % 4) - 1.5) * 1.35 + (Math.random() - .5) * .4, 0, (Math.floor(i / 4) - 1) * 1.8 + (Math.random() - .5) * .4); forest.add(t); }
   const ash = mesh(new THREE.BoxGeometry(S, .02, S), mat('#3a3330'), [0, .01, 0]); ash.visible = false; root.add(ash);
