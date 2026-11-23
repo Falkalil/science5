@@ -1,9 +1,11 @@
 // مجسّمات الصف السادس (١): الخلية والوراثة
+import { creature } from './kit.js';
 import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tissue, fbm3, vesselGeo } from './kit.js';
 
 /* ── أدوات ── */
 function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
 export function emo(ch, s = 1, bg = null) {
+  const cr = creature(ch, s); if (cr) return cr;
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   if (bg) { g.fillStyle = bg; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill(); }
   g.font = '92px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 64, 70);

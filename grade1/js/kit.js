@@ -213,3 +213,159 @@ export class CellFlow { constructor(parent, flows, color, n) { const g = new THR
     for (let i = 0; i < n; i++) { const f = flows[i % flows.length]; this.d.push({ ...f, t: srnd(), off: new THREE.Vector3(srnd() - .5, srnd() - .5, srnd() - .5), rot: new THREE.Euler(srnd() * 6, srnd() * 6, 0), k: .8 + srnd() * .3 }); } parent.add(this.im); }
   update(dt, sp = .5) { if (!this.im.visible) return; const o = this.o; this.d.forEach((d, i) => { d.t = (d.t + dt * sp / d.c.getLength()) % 1; const r = d.r0 + (d.r1 - d.r0) * Math.pow(d.t, .8);
     o.position.copy(d.c.getPointAt(d.t)).addScaledVector(d.off, r * .9); o.rotation.copy(d.rot); o.rotation.x += d.t * 20; o.scale.setScalar(d.hide && d.hide() ? 0 : Math.min(.045, r * .45) * d.k); o.updateMatrix(); this.im.setMatrixAt(i, o.matrix); }); this.im.instanceMatrix.needsUpdate = true; } }
+
+/* ═════════ مكتبةُ مخلوقاتٍ ثلاثيّةِ الأبعاد (بدلَ الرموزِ التعبيريّةِ المسطّحة) ═════════ */
+const _C = c => new THREE.Color(c);
+function _part(geo, colorFn, o = {}) { const P = geo.attributes.position, col = new Float32Array(P.count * 3), v = new THREE.Vector3(), c = new THREE.Color();
+  for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); c.copy(colorFn(v)); col.set([c.r, c.g, c.b], i * 3); } geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial(Object.assign({ vertexColors: true, roughness: o.rough ?? .75, sheen: o.sheen ?? .9, sheenRoughness: .5, sheenColor: _C(o.sheenColor || '#fff4e6'), clearcoat: o.coat ?? 0, clearcoatRoughness: .3, bumpMap: tissueBump(o.bump || 'pore', 9), bumpScale: o.bumpScale ?? .6 }, o.m || {}))); }
+const ell = (rx, ry, rz, fn) => organGeo(1, v => { v.x *= rx; v.y *= ry; v.z *= rz; if (fn) fn(v); }, 40, 28);
+const solid = c => () => _C(c);
+const belly = (top, bot, y0 = 0) => v => _C(top).lerp(_C(bot), THREE.MathUtils.smoothstep(-v.y, y0 - .05, y0 + .25));
+const stripes = (a, b, f = 12, base) => v => (Math.sin(v.x * f + Math.sin(v.y * 6) * 1.5) > .55 ? _C(b) : base ? base(v) : _C(a));
+const spots = (a, b, f = 7, t = .35) => v => (noise3(v.x * f, v.y * f, v.z * f) > t ? _C(b) : _C(a));
+function _place(g, m, p, r, s) { if (p) m.position.set(...p); if (r) m.rotation.set(...r); if (s) (typeof s === 'number') ? m.scale.setScalar(s) : m.scale.set(...s); m.castShadow = true; g.add(m); return m; }
+const eyeM = new THREE.MeshPhysicalMaterial({ color: '#0d0a08', roughness: .05, clearcoat: 1 });
+function eyes(g, x, y, z, r = .045) { for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), eyeM); e.position.set(x, y, s * z); g.add(e); } }
+function legs(g, pts, h, r, colorFn, o) { for (const [x, z] of pts) for (const s of [-1, 1]) _place(g, _part(vesselGeo([[0, 0, 0], [0, -h * .5, 0], [.02, -h, 0]], r, r * .7, 10, 10, .02), colorFn, o), [x, 0, s * z]); }
+/** رباعيُّ أرجل عامّ */
+function quad(o) { const g = new THREE.Group(), c = o.color, fn = o.pattern || belly(c, o.belly || c), m = { sheenColor: o.sheen || '#fff4e6' };
+  const L = o.len || 1, H = o.h || .55, W = o.w || .38;
+  _place(g, _part(ell(L / 2, H / 2, W / 2, v => { if (o.hump) v.y += Math.max(0, Math.cos(v.x * 3)) * o.hump * (v.y > 0 ? 1 : 0); v.y += v.x * (o.tilt || 0); }), fn, m), [0, 0, 0]);
+  const nk = o.neck || 0, hx = L / 2 + (o.headF ?? .05), hy = H * .25 + nk;
+  if (nk > .1) _place(g, _part(vesselGeo([[L * .35, H * .2, 0], [hx - .05, hy * .6, 0], [hx, hy, 0]], (o.neckR || .1), (o.neckR || .1) * .8, 16, 12, .02), fn, m));
+  const hr = o.head || .2; const head = new THREE.Group(); head.position.set(hx, hy, 0); g.add(head);
+  _place(head, _part(ell(hr * (o.snout || 1.4), hr, hr * .85, v => { if (v.x > 0) { const k = 1 - v.x / (hr * (o.snout || 1.4)) * (o.snoutTaper ?? .45); v.y *= k; v.z *= k; } }), o.headPattern || fn, m), [0, 0, 0], [0, 0, o.headTilt || -.15]);
+  eyes(head, hr * .55, hr * .35, hr * .55, hr * .17);
+  _place(head, new THREE.Mesh(new THREE.SphereGeometry(hr * .14, 12, 10), eyeM), [hr * (o.snout || 1.4) * .95, -hr * .05, 0]);
+  if (o.ears) for (const s of [-1, 1]) _place(head, _part(ell(.05, o.ears, .025), solid(o.earColor || c), m), [-hr * .1, hr * .8 + o.ears * .7, s * hr * .45], [s * .25, 0, o.earBack ?? .25]);
+  if (o.bigEars) for (const s of [-1, 1]) _place(head, _part(ell(.04, o.bigEars, o.bigEars * .9), solid(c), m), [-hr * .3, 0, s * hr * .9], [0, s * .3, 0]);
+  if (o.horns) for (const s of [-1, 1]) _place(head, _part(vesselGeo([[0, 0, 0], [-.05, o.horns * .6, s * .05], [-.15, o.horns, s * .08]], .03, .01, 12, 8), solid('#5b4a3a'), { rough: .4 }), [-hr * .2, hr * .7, s * hr * .3]);
+  if (o.antlers) for (const s of [-1, 1]) { const a = []; twigs(a, V(-hr * .2, hr * .8, s * hr * .3), V(-.2, 1, s * .4), .25, .025, 3, .9); _place(head, _part(mergeGeos(a), solid('#7a5a3a'))); }
+  if (o.trunk) _place(head, _part(vesselGeo([[hr * 1.2, 0, 0], [hr * 1.6, -hr * .8, 0], [hr * 1.5, -hr * 2.2, 0], [hr * 1.8, -hr * 2.6, 0]], hr * .3, hr * .12, 30, 12, .06), fn, m));
+  if (o.mane) _place(head, _part(ell(hr * 1.3, hr * 1.4, hr * 1.25, v => v.multiplyScalar(1 + noise3(v.x * 14, v.y * 14, v.z * 14) * .15)), solid(o.mane), { bumpScale: 3 }), [-hr * .45, 0, 0]);
+  const lh = o.legH || H * .9, lx = L * .32; legs(g, [[lx, W * .3], [-lx, W * .3]].map(([x, z]) => [x, z]), lh, o.legR || .06, o.legColor ? solid(o.legColor) : fn, m); g.children.slice(-4).forEach(l => l.position.y = -H * .2);
+  if (o.tail) _place(g, _part(vesselGeo([[-L / 2, 0, 0], [-L / 2 - o.tail * .5, H * (o.tailUp ?? .2), 0], [-L / 2 - o.tail, H * (o.tailUp ?? .2) * 1.8, 0]], o.tailR || .05, o.tailR2 ?? .02, 20, 10, .05), o.tailColor ? solid(o.tailColor) : fn, m));
+  if (o.bushy) _place(g, _part(ell(.18, .38, .14, v => v.multiplyScalar(1 + noise3(v.x * 12, v.y * 12, v.z * 12) * .12)), fn, { bumpScale: 3 }), [-L / 2 - .1, H * .4, 0], [0, 0, -.35]);
+  if (o.puff) _place(g, _part(ell(.09, .09, .09), solid('#ffffff'), { bumpScale: 3 }), [-L / 2, H * .1, 0]);
+  return g; }
+function bird(o) { const g = new THREE.Group(), c = o.color, fn = o.pattern || belly(c, o.belly || c); const m = { sheenColor: '#ffffff', bump: 'pore', bumpScale: .8 };
+  _place(g, _part(ell(.42, .3, .28, v => { if (v.x < 0) v.y += v.x * .25; }), fn, m), [0, 0, 0], [0, 0, o.upright ? .9 : .15]);
+  const hy = o.upright ? .38 : .22, hx = o.upright ? .12 : .38; const head = new THREE.Group(); head.position.set(hx, hy, 0); g.add(head);
+  _place(head, _part(ell(.2, .19, .18), o.headColor ? solid(o.headColor) : fn, m)); eyes(head, o.owl ? .14 : .1, .05, o.owl ? .08 : .12, o.owl ? .05 : .032);
+  if (o.owl) for (const s of [-1, 1]) _place(head, new THREE.Mesh(new THREE.SphereGeometry(.07, 16, 12), new THREE.MeshPhysicalMaterial({ color: '#f2b12a', roughness: .1, clearcoat: 1 })), [.13, .05, s * .075]);
+  const bk = o.beak || .14; _place(head, _part(new THREE.ConeGeometry(.045, bk, 16), solid(o.beakColor || '#e8a030'), { rough: .4, coat: .6 }), [.18 + bk * .4, -.02, 0], [0, 0, -Math.PI / 2 - (o.hook ? .5 : 0)]);
+  if (o.comb) _place(head, _part(ell(.08, .07, .02), solid('#d42020')), [.02, .2, 0]);
+  for (const s of [-1, 1]) _place(g, _part(ell(.3, .08, .17, v => { if (v.x < 0) v.z *= 1 + v.x * .8; }), o.wingColor ? solid(o.wingColor) : fn, m), [-.05, .05, s * .26], [s * .15, 0, -.15 + (o.spread ? s * .9 : 0)]);
+  _place(g, _part(ell(.22, .04, .12), o.wingColor ? solid(o.wingColor) : fn, m), [-.48, -.05, 0], [0, 0, .3]);
+  for (const s of [-1, 1]) _place(g, _part(vesselGeo([[0, 0, 0], [0, -.15, 0], [.06, -.22, 0]], .022, .015, 8, 8), solid(o.legColor || '#c88a30'), { rough: .4 }), [0, -.22, s * .08]);
+  return g; }
+function fish(o) { const g = new THREE.Group(), c = o.color, fn = o.pattern || belly(c, o.belly || '#f4f1ea'); const m = { rough: .25, coat: 1, sheen: .3, bump: 'pore', bumpScale: .5 };
+  const L = o.len || 1; _place(g, _part(ell(L / 2, o.h || .22, o.w || .12, v => { if (v.x < 0) { const k = 1 + v.x / L * 1.2; v.y *= k; v.z *= k; } }), fn, m));
+  _place(g, _part(ell(.12, o.tailH || .2, .02, v => { v.x -= Math.abs(v.y) * .5; }), fn, m), [-L / 2 - .05, 0, 0]);
+  _place(g, _part(ell(.12, o.fin || .1, .015), fn, m), [0, (o.h || .22) * .9, 0], [0, 0, -.4]);
+  eyes(g, L * .36, (o.h || .22) * .25, (o.w || .12) * .75, .028);
+  if (o.flipper) for (const s of [-1, 1]) _place(g, _part(ell(.12, .03, .07), fn, m), [L * .15, -(o.h || .22) * .5, s * (o.w || .12)], [s * .5, 0, -.4]);
+  return g; }
+function bug(o) { const g = new THREE.Group(), c = o.color; const m = { rough: .3, coat: 1, sheen: .2, bump: 'pore', bumpScale: .4 };
+  _place(g, _part(ell(o.abd || .3, .14, .14), o.pattern || solid(c), m), [-.2, 0, 0]);
+  _place(g, _part(ell(.12, .1, .1), solid(o.thorax || c), m), [.05, .02, 0]); _place(g, _part(ell(.1, .09, .09), solid(o.thorax || c), m), [.2, .04, 0]); eyes(g, .26, .07, .06, .03);
+  for (let i = 0; i < 3; i++) for (const s of [-1, 1]) _place(g, _part(vesselGeo([[0, 0, 0], [(i - 1) * .06, .06, s * .12], [(i - 1) * .12 + (o.hop && i === 0 ? -.2 : 0), -.12, s * .18]], .016, .01, 10, 6), solid(o.legColor || '#3a2a1a'), m), [.05, -.02, 0]);
+  if (o.hop) for (const s of [-1, 1]) _place(g, _part(vesselGeo([[.05, 0, s * .08], [-.15, .2, s * .12], [-.38, -.1, s * .13]], .025, .012, 12, 8), solid(c), m));
+  for (const s of [-1, 1]) _place(g, _part(vesselGeo([[.27, .08, s * .03], [.4, .25, s * .08], [.5, .35, s * .1]], .008, .004, 10, 5), solid('#2a1a0a'), m));
+  if (o.wings) for (const s of [-1, 1]) _place(g, new THREE.Mesh(organGeo(1, v => { v.x *= .35; v.y *= .02; v.z *= .45; }), new THREE.MeshPhysicalMaterial({ color: o.wings, roughness: .4, sheen: 1, transparent: true, opacity: .95, side: 2 })), [0, .12, s * .38], [s * -.25, 0, 0]);
+  if (o.shell) _place(g, _part(ell(.26, .16, .2, v => { if (v.y < 0) v.y *= .2; }), spots(o.shell, '#111111', 9), { rough: .15, coat: 1 }), [-.1, .03, 0]);
+  return g; }
+function snake(c = '#6a8a2a') { const g = new THREE.Group(), pts = []; for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push([.6 - t * 1.2, .02, Math.sin(t * 10) * .18 * (1 - t * .3)]); } pts.push([pts[pts.length - 1][0] - .02, .02, pts[pts.length - 1][2]]);
+  _place(g, _part(vesselGeo(pts.map(p => V(...p)), .07, .015, 120, 14, .02), v => (Math.sin(v.x * 40) > .6 ? _C(c).multiplyScalar(.6) : _C(c)), { rough: .3, coat: .8 })); _place(g, _part(ell(.11, .06, .08), solid(c), { coat: .8 }), [.66, .03, 0]); eyes(g, .7, .07, .05, .016); return g; }
+function frog() { const g = new THREE.Group(), fn = belly('#4f9a2a', '#e8e4b0'); const m = { rough: .2, coat: 1, sheen: .2 };
+  _place(g, _part(ell(.32, .2, .26, v => { if (v.x > 0) v.y *= 1 - v.x * .5; }), spots('#4f9a2a', '#2f6a1a', 6), m), [0, 0, 0], [0, 0, .35]); _place(g, _part(ell(.18, .1, .2), fn, m), [.28, .08, 0]);
+  for (const s of [-1, 1]) { _place(g, new THREE.Mesh(new THREE.SphereGeometry(.06, 16, 12), eyeM), [.3, .18, s * .1]); _place(g, _part(ell(.2, .07, .08), solid('#4f9a2a'), m), [-.2, -.12, s * .22], [0, s * .4, 0]); _place(g, _part(vesselGeo([[.1, -.05, s * .12], [.18, -.2, s * .18], [.26, -.22, s * .22]], .03, .02, 10, 8), solid('#4f9a2a'), m)); }
+  return g; }
+function lizard(c = '#a8834a') { const g = new THREE.Group(), fn = spots(c, '#6a4a2a', 9); const m = { rough: .5, coat: .4 }; _place(g, _part(ell(.32, .08, .1), fn, m)); _place(g, _part(ell(.13, .06, .07, v => { if (v.x > 0) { v.y *= 1 - v.x * 2; } }), fn, m), [.4, .02, 0]); eyes(g, .43, .05, .05, .015);
+  _place(g, _part(vesselGeo([[-.3, 0, 0], [-.6, 0, .1], [-.9, 0, -.05]], .06, .008, 30, 10), fn, m)); for (const x of [.18, -.18]) for (const s of [-1, 1]) _place(g, _part(vesselGeo([[x, 0, s * .08], [x + .05, -.03, s * .18], [x + .08, -.08, s * .22]], .025, .015, 8, 6), fn, m)); return g; }
+function turtle() { const g = new THREE.Group(); _place(g, _part(ell(.4, .2, .32, v => { if (v.y < 0) v.y *= .25; }), v => (noise3(v.x * 8, v.y * 8, v.z * 8) > .2 ? _C('#5a4a2a') : _C('#7a6a3a')), { rough: .3, coat: .8, bumpScale: 2 }));
+  const sk = belly('#8a9a5a', '#c8c89a'); _place(g, _part(ell(.14, .09, .1), sk), [.45, 0, 0]); eyes(g, .52, .04, .06, .015); for (const x of [.25, -.25]) for (const s of [-1, 1]) _place(g, _part(ell(.1, .04, .07), sk), [x, -.05, s * .3]); return g; }
+function snail() { const g = new THREE.Group(); const sp = []; for (let i = 0; i <= 60; i++) { const a = i / 60 * Math.PI * 5, r = .22 * Math.exp(-a * .16); sp.push(V(Math.cos(a) * r, .2 + Math.sin(a) * r, (i / 60) * .08)); }
+  _place(g, _part(vesselGeo(sp.reverse(), .015, .13, 120, 16, 0), v => (Math.sin(v.length() * 60) > .5 ? _C('#8a5a2a') : _C('#c89a5a')), { rough: .3, coat: .9 })); _place(g, _part(ell(.35, .07, .1, v => { if (v.x > 0) v.y *= 1 + v.x; }), solid('#a89a80'), { coat: .8, rough: .2 }), [0, -.05, 0]);
+  for (const s of [-1, 1]) { _place(g, _part(vesselGeo([[.3, .05, s * .03], [.36, .2, s * .06]], .012, .008, 6, 6), solid('#a89a80'))); _place(g, new THREE.Mesh(new THREE.SphereGeometry(.018, 10, 8), eyeM), [.36, .21, s * .06]); } return g; }
+function worm(c = '#c97a7a') { const g = new THREE.Group(), pts = []; for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push(V(.5 - t, Math.abs(Math.sin(t * 7)) * .05, Math.sin(t * 6) * .1)); } _place(g, _part(vesselGeo(pts, .04, .03, 100, 12, .12), v => (Math.sin(v.x * 70) > .7 ? _C(c).multiplyScalar(.8) : _C(c)), { rough: .2, coat: 1 })); return g; }
+function butterfly() { const g = new THREE.Group(); _place(g, _part(ell(.25, .04, .04), solid('#2a1a0a'))); const wm = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .5, sheen: 1, side: 2 });
+  for (const s of [-1, 1]) for (const [x, r] of [[.07, .3], [-.12, .22]]) { const geo = organGeo(1, v => { v.x *= r * .8; v.y *= .01; v.z *= r; }); const m = _part(geo, v => (Math.hypot(v.x, v.z) > r * .8 ? _C('#1a1a1a') : noise3(v.x * 20, 0, v.z * 20) > .45 ? _C('#ffffff') : _C('#f08a1a'))); m.material = wm; _place(g, m, [x, .02, s * r * 1.05], [s * -.4, 0, 0]); }
+  for (const s of [-1, 1]) _place(g, _part(vesselGeo([[.22, .02, s * .02], [.35, .15, s * .08]], .006, .004, 6, 5), solid('#1a1a1a'))); return g; }
+function mushroom() { const g = new THREE.Group(); _place(g, _part(vesselGeo([[0, -.3, 0], [0, 0, 0], [0, .1, 0]], .09, .07, 10, 14), solid('#f2eadc'), { bumpScale: .4 })); _place(g, _part(ell(.32, .2, .32, v => { if (v.y < 0) v.y *= .15; }), spots('#c8281e', '#ffffff', 9), { coat: .8, rough: .3 }), [0, .1, 0]); return g; }
+function microbe() { const g = new THREE.Group(); _place(g, _part(ell(.35, .15, .15, v => v.multiplyScalar(1 + noise3(v.x * 8, v.y * 8, v.z * 8) * .05)), solid('#7fbf4a'), { m: { transparent: true, opacity: .85 }, coat: 1, rough: .2 })); const f = []; for (let i = 0; i < 8; i++) twigs(f, V(-.3 + i * .08, 0, 0), V(srnd() - .5, 1, srnd() - .5), .25, .006, 1, .5); _place(g, _part(mergeGeos(f), solid('#5a8a2a'))); return g; }
+function sprout(big) { const g = new THREE.Group(); _place(g, _part(vesselGeo([[0, -.35, 0], [.02, 0, 0], [0, .3, 0]], .025, .018, 12, 8), solid('#5a9a2a'))); const leaf = organGeo(1, v => { v.x *= .22; v.y *= .02; v.z *= .1; v.y += v.x * v.x * .8; });
+  const n = big ? 7 : 2; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; _place(g, _part(leaf.clone(), v => _C('#4f9a2a').lerp(_C('#9ad04a'), Math.abs(v.x) * 2), { bump: 'vein', bumpScale: 2 }), [Math.cos(a) * .18, (big ? -.25 + i * .07 : .25), Math.sin(a) * .18], [0, -a, .3]); } return g; }
+const CREATURES = {
+  '🐇': () => quad({ color: '#9a7a5a', belly: '#e8dccb', len: .8, h: .5, head: .2, ears: .28, earColor: '#c8a888', legH: .25, puff: 1, snout: 1.2 }),
+  '🐭': () => quad({ color: '#8a8a8a', belly: '#d8d0c8', len: .6, h: .3, head: .15, bigEars: .08, legH: .12, tail: .6, tailR: .018, tailR2: .008, tailColor: '#d8a8a8', tailUp: 0, snout: 1.6 }),
+  '🐁': () => CREATURES['🐭'](), '🐹': () => quad({ color: '#d89a5a', belly: '#f6ead8', len: .55, h: .4, head: .18, bigEars: .06, legH: .1, snout: 1.1 }),
+  '🐿️': () => quad({ color: '#a8602a', belly: '#f0dcc0', len: .55, h: .4, head: .16, ears: .08, legH: .18, bushy: 1, tilt: .3, snout: 1.3 }),
+  '🦌': () => quad({ color: '#a8703a', belly: '#f0e0c8', len: 1, h: .45, head: .16, neck: .5, neckR: .09, ears: .1, legH: .75, legR: .035, antlers: 1, tail: .12, tailColor: '#ffffff', snout: 1.6 }),
+  '🦊': () => quad({ color: '#d8602a', belly: '#f6f0e8', len: .85, h: .38, head: .17, ears: .12, legH: .35, legColor: '#3a2a1a', tail: .55, tailR: .09, tailR2: .06, tailUp: .1, snout: 1.9, snoutTaper: .7 }),
+  '🐪': () => quad({ color: '#c8a070', len: 1.1, h: .5, head: .15, neck: .45, neckR: .1, headF: .25, legH: .85, legR: .05, hump: .35, tail: .3, tailR: .025, snout: 1.8 }),
+  '🐫': () => quad({ color: '#c8a070', len: 1.1, h: .5, head: .15, neck: .45, neckR: .1, headF: .25, legH: .85, legR: .05, hump: .3, tail: .3, tailR: .025, snout: 1.8 }),
+  '🐄': () => quad({ color: '#f4f0ea', pattern: spots('#f4f0ea', '#2a2a2a', 5, .1), len: 1.2, h: .6, head: .2, horns: .12, ears: .06, legH: .55, legR: .07, tail: .5, tailR: .025, snout: 1.6 }),
+  '🐐': () => quad({ color: '#e8e0d4', len: .9, h: .45, head: .16, horns: .2, ears: .07, legH: .5, legR: .045, tail: .1, snout: 1.6 }),
+  '🐅': () => quad({ color: '#e0781a', pattern: stripes('#e0781a', '#1a1a1a', 14, belly('#e0781a', '#f6f0e8')), len: 1.2, h: .5, head: .24, ears: .06, legH: .45, legR: .08, tail: .8, tailR: .04, tailUp: .3, snout: 1.15 }),
+  '🐆': () => quad({ color: '#d8a84a', pattern: spots('#d8a84a', '#3a2a1a', 9), len: 1.1, h: .45, head: .2, ears: .06, legH: .5, legR: .06, tail: .8, tailR: .035, tailUp: .3, snout: 1.15 }),
+  '🦁': () => quad({ color: '#d8a85a', belly: '#f0dcb0', len: 1.2, h: .55, head: .24, ears: .06, mane: '#8a5a2a', legH: .5, legR: .08, tail: .8, tailR: .035, tailUp: .3, snout: 1.2 }),
+  '🐻': () => quad({ color: '#6a4a2a', len: 1.1, h: .65, head: .26, ears: .07, legH: .4, legR: .12, snout: 1.4 }),
+  '🐘': () => quad({ color: '#8a8a8e', len: 1.3, h: .8, head: .35, bigEars: .32, trunk: 1, legH: .6, legR: .16, tail: .3, tailR: .03, snout: 1.1 }),
+  '🦒': () => quad({ color: '#e0a84a', pattern: spots('#e8b860', '#8a4a1a', 6), len: 1, h: .5, head: .14, neck: 1.3, neckR: .08, headF: .2, horns: .1, ears: .07, legH: 1.1, legR: .045, tail: .4, tailR: .02, snout: 1.8 }),
+  '🦓': () => quad({ color: '#ffffff', pattern: stripes('#f6f6f6', '#151515', 18), len: 1.1, h: .55, head: .18, neck: .4, neckR: .1, ears: .1, legH: .7, legR: .05, tail: .4, tailR: .025, snout: 1.8 }),
+  '🐈': () => quad({ color: '#d89a5a', pattern: stripes('#d89a5a', '#a8602a', 16), len: .8, h: .35, head: .17, ears: .1, legH: .35, legR: .04, tail: .6, tailR: .035, tailUp: .6, snout: 1.05 }),
+  '🐃': () => quad({ color: '#3a3a3a', len: 1.2, h: .65, head: .22, horns: .25, legH: .55, legR: .08, tail: .4, snout: 1.5 }),
+  '🦝': () => quad({ color: '#8a8a8a', len: .8, h: .4, head: .17, ears: .07, legH: .3, tail: .5, tailR: .07, pattern: stripes('#8a8a8a', '#2a2a2a', 14), snout: 1.5 }),
+  '🐦': () => bird({ color: '#8a6a4a', belly: '#e8d8c0', beak: .1, beakColor: '#3a3a3a' }), '🐥': () => bird({ color: '#f6d64a', beak: .08, legColor: '#e89a2a' }), '🐣': () => bird({ color: '#f6d64a', beak: .08 }),
+  '🦅': () => bird({ color: '#5a3a1a', headColor: '#f6f2ea', beak: .16, hook: 1, beakColor: '#f2c22a', spread: 1 }), '🦉': () => bird({ color: '#8a6a4a', belly: '#d8c0a0', owl: 1, upright: 1, beak: .07, hook: 1, beakColor: '#6a5a4a' }),
+  '🐔': () => bird({ color: '#f4f0ea', comb: 1, beak: .1, beakColor: '#f2b22a' }), '🦜': () => bird({ color: '#2aa84a', headColor: '#f2d22a', wingColor: '#1a6ad8', beak: .12, hook: 1, beakColor: '#2a2a2a' }),
+  '🐧': () => bird({ color: '#1a1a22', belly: '#ffffff', upright: 1, beak: .1 }), '🦆': () => bird({ color: '#8a6a4a', headColor: '#1a7a3a', beak: .14, beakColor: '#f2c22a' }), '🦢': () => bird({ color: '#ffffff', beak: .12, beakColor: '#f28a2a' }), '🦩': () => bird({ color: '#f28aa0', beak: .14, upright: 1 }),
+  '🐟': () => fish({ color: '#4a8ad8', belly: '#e8eef4' }), '🐠': () => fish({ color: '#f28a1a', pattern: stripes('#f28a1a', '#ffffff', 10), h: .3 }), '🦈': () => fish({ color: '#6a7a8a', len: 1.6, h: .22, fin: .25, tailH: .35, flipper: 1 }),
+  '🐬': () => fish({ color: '#6a8aa8', len: 1.4, h: .2, fin: .18, flipper: 1 }), '🐋': () => fish({ color: '#3a4a6a', len: 2, h: .4, w: .3, fin: .06, tailH: .3, flipper: 1 }),
+  '🐛': () => worm('#7ac83a'), '🪱': () => worm(), '🐍': () => snake(), '🐸': () => frog(), '🦎': () => lizard(), '🐢': () => turtle(), '🐌': () => snail(), '🦋': () => butterfly(), '🍄': () => mushroom(), '🦠': () => microbe(),
+  '🦗': () => bug({ color: '#5a9a2a', abd: .38, hop: 1, legColor: '#4a7a2a' }), '🐜': () => bug({ color: '#3a1a0a', abd: .2, thorax: '#3a1a0a' }), '🐞': () => bug({ color: '#c8281e', shell: '#d0261e', thorax: '#151515' }), '🦟': () => bug({ color: '#3a3a3a', abd: .25, wings: '#dfe8f0' }), '🐝': () => bug({ color: '#f2b22a', pattern: stripes('#f2b22a', '#1a1a1a', 30), wings: '#e8f0f8' }),
+  '🌱': () => sprout(), '🌿': () => sprout(true), '🌳': () => tree(.9), '🌲': () => pine(.9),
+};
+function crust(o) { const g = new THREE.Group(), c = o.color, m = { rough: .3, coat: 1, sheen: .2, bumpScale: .4 }; const segs = o.segs || 6;
+  for (let i = 0; i < segs; i++) _place(g, _part(ell(.09, .08 - i * .006, .1 - i * .008), solid(c), m), [.2 - i * .1, o.curl ? -i * i * .006 : 0, 0]);
+  _place(g, _part(ell(.2, .12, .13), solid(c), m), [.35, .02, 0]); eyes(g, .5, .08, .05, .02); for (const s of [-1, 1]) _place(g, _part(vesselGeo([[.5, .05, s * .03], [.8, .2, s * .15], [1.1, .1, s * .25]], .008, .003, 10, 5), solid(c), m));
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) _place(g, _part(vesselGeo([[.35 - i * .06, -.05, s * .06], [.35 - i * .06, -.12, s * .16], [.33 - i * .06, -.18, s * .2]], .012, .008, 6, 5), solid(c), m));
+  if (o.claws) for (const s of [-1, 1]) { _place(g, _part(vesselGeo([[.45, 0, s * .1], [.6, .02, s * .22], [.75, .04, s * .25]], .03, .03, 8, 8), solid(c), m)); _place(g, _part(ell(.12, .05, .07), solid(c), m), [.85, .04, s * .26]); }
+  _place(g, _part(ell(.1, .02, .12, v => { v.x -= Math.abs(v.z) * .3; }), solid(c), m), [.2 - segs * .1, o.curl ? -segs * segs * .006 : 0, 0]); return g; }
+function crab() { const g = new THREE.Group(), c = '#d8502a', m = { rough: .3, coat: 1, bumpScale: .5 }; _place(g, _part(ell(.32, .12, .26), spots(c, '#b8381a', 9), m));
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) _place(g, _part(vesselGeo([[-.1 + i * .07, 0, s * .2], [-.12 + i * .08, .1, s * .42], [-.15 + i * .1, -.15, s * .52]], .025, .015, 8, 6), solid(c), m));
+  for (const s of [-1, 1]) { _place(g, _part(vesselGeo([[.2, 0, s * .15], [.38, .06, s * .25]], .04, .04, 6, 8), solid(c), m)); _place(g, _part(ell(.14, .08, .08), solid(c), m), [.48, .08, s * .27]); _place(g, new THREE.Mesh(new THREE.SphereGeometry(.03, 10, 8), eyeM), [.3, .16, s * .06]); } return g; }
+function scorpion() { const g = crust({ color: '#c8a050', segs: 5, claws: 1 }); const t = []; for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI * .9; t.push(V(-.3 - Math.sin(a) * .3, (1 - Math.cos(a)) * .3, 0)); } _place(g, _part(vesselGeo(t, .05, .025, 40, 10, .1), solid('#c8a050'), { coat: 1 })); _place(g, _part(new THREE.ConeGeometry(.03, .1, 10), solid('#3a2a1a')), [-.3, .62, 0], [0, 0, 2.2]); return g; }
+function octopus(c = '#c8503a', jelly) { const g = new THREE.Group(), m = jelly ? { m: { transparent: true, opacity: .6 }, coat: 1, rough: .1 } : { coat: 1, rough: .2 };
+  _place(g, _part(ell(.28, jelly ? .2 : .32, .28, v => { if (jelly && v.y < 0) v.y *= .2; }), jelly ? solid(c) : spots(c, '#a83a2a', 10), m), [0, .3, 0]); if (!jelly) eyes(g, .2, .32, .14, .04);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, pts = []; for (let k = 0; k <= 8; k++) { const t = k / 8; pts.push(V(Math.cos(a) * (.18 + t * (jelly ? .05 : .4)), .15 - t * (jelly ? .6 : .3) + (jelly ? 0 : Math.sin(t * 5) * .05), Math.sin(a) * (.18 + t * (jelly ? .05 : .4)) + (jelly ? Math.sin(t * 9 + i) * .04 : 0))); } _place(g, _part(vesselGeo(pts, jelly ? .012 : .05, .008, 30, 8, .02), solid(c), m)); } return g; }
+function coral() { const g = new THREE.Group(), a = []; reseed(17); for (let i = 0; i < 4; i++) twigs(a, V((i - 1.5) * .15, -.4, 0), V((i - 1.5) * .2, 1, 0), .3, .06, 4, .7, 6); _place(g, _part(mergeGeos(a), v => _C('#f0705a').lerp(_C('#f8c0a0'), THREE.MathUtils.clamp(v.y + .3, 0, 1)), { bumpScale: 2 })); return g; }
+function flower(petal = '#f0c020', center = '#6a3a1a', n = 12) { const g = new THREE.Group(); _place(g, _part(vesselGeo([[0, -.5, 0], [.03, -.1, 0], [0, .2, 0]], .025, .02, 12, 8), solid('#4f8a2a'))); const pg = organGeo(1, v => { v.x *= .14; v.y *= .012; v.z *= .05; });
+  const hd = new THREE.Group(); hd.position.set(0, .24, 0); hd.rotation.x = 1.05; g.add(hd); for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; _place(hd, _part(pg.clone(), solid(petal), { sheen: 1 }), [Math.cos(a) * .15, 0, Math.sin(a) * .15], [0, -a, .25]); } _place(hd, _part(ell(.09, .04, .09), spots(center, '#3a1a0a', 30), { bumpScale: 2 }), [0, .01, 0]);
+  for (const s of [-1, 1]) _place(g, _part(organGeo(1, v => { v.x *= .14; v.y *= .015; v.z *= .06; }), solid('#4f9a2a'), { bump: 'vein' }), [s * .12, -.2, 0], [0, 0, s * .4]); return g; }
+function palm() { const g = new THREE.Group(); _place(g, _part(vesselGeo([[0, -.6, 0], [.05, 0, 0], [.15, .5, 0]], .07, .05, 30, 12, .02), v => (Math.sin(v.y * 60) > .3 ? _C('#8a6a4a') : _C('#6a4a2a')), { bumpScale: 2 }));
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, d = V(Math.cos(a), 0, Math.sin(a)); _place(g, _part(organGeo(1, v => { v.x *= .32; v.y *= .015; v.z *= .07; v.y -= v.x * v.x * 2.2 + (v.x > 0 ? 0 : 0); v.z *= 1 + Math.sin(v.x * 40) * .5; }), solid('#3f8a2a'), { bump: 'vein' }), [.15 + d.x * .3, .48, d.z * .3], [0, -a, .1]); }
+  for (let i = 0; i < 4; i++) _place(g, _part(ell(.04, .05, .04), solid('#8a5a1a'), { coat: .5 }), [.15 + Math.cos(i * 1.6) * .06, .42, Math.sin(i * 1.6) * .06]); return g; }
+function cactus() { const g = new THREE.Group(), rib = v => { const a = Math.atan2(v.z, v.x); const k = 1 + Math.cos(a * 12) * .06; v.x *= k; v.z *= k; }, fn = v => _C('#4f8a3a').lerp(_C('#6aa84a'), (Math.cos(Math.atan2(v.z, v.x) * 12) + 1) * .3), m = { coat: .5, rough: .4 };
+  _place(g, _part(organGeo(1, v => { v.x *= .14; v.z *= .14; v.y *= .6; rib(v); }), fn, m), [0, 0, 0]); for (const s of [-1, 1]) { _place(g, _part(vesselGeo([[0, -.05, 0], [s * .22, -.05, 0], [s * .25, .25, 0]], .08, .07, 16, 16, 0), fn, m)); _place(g, _part(organGeo(.08, v => {}), fn, m), [s * .25, .26, 0]); } return g; }
+function grain() { const g = new THREE.Group(); for (let i = 0; i < 5; i++) { const a = (i - 2) * .12, x = (i - 2) * .06; _place(g, _part(vesselGeo([[x, -.5, 0], [x + a * .3, 0, 0], [x + a, .3, 0]], .012, .008, 12, 6), solid('#c8a850'))); for (let k = 0; k < 10; k++) for (const s of [-1, 1]) _place(g, _part(ell(.025, .045, .02), solid('#d8b860'), { coat: .3 }), [x + a + s * .025, .3 + k * .035, 0], [0, 0, -s * .4]); } return g; }
+function egg() { const g = new THREE.Group(); _place(g, _part(organGeo(1, v => { v.x *= .22; v.z *= .22; v.y *= .3; if (v.y > 0) { v.x *= 1 - v.y * .5; v.z *= 1 - v.y * .5; } }), solid('#f2e6d0'), { coat: .6, rough: .35, sheen: .2 })); return g; }
+Object.assign(CREATURES, {
+  '🦐': () => crust({ color: '#f0805a', curl: 1, segs: 6 }), '🦞': () => crust({ color: '#c83a2a', claws: 1, segs: 6 }), '🦀': crab, '🦂': scorpion, '🐙': () => octopus(), '🪼': () => octopus('#c8a8f0', 1), '🪸': coral,
+  '🌸': () => flower('#f6b8c8', '#f2d060', 5), '🌻': () => flower('#f2c020', '#5a3a1a', 16), '🌼': () => flower('#f6e070', '#e8a020', 10), '🌺': () => flower('#e83a4a', '#f2d060', 5), '🥀': () => flower('#8a2a3a', '#4a1a1a', 6),
+  '🌴': palm, '🌵': cactus, '🌾': grain, '🥚': egg,
+  '🐻‍❄': () => quad({ color: '#f6f2ea', len: 1.1, h: .6, head: .22, ears: .05, legH: .4, legR: .12, snout: 1.6 }), '🦭': () => fish({ color: '#8a8a82', pattern: spots('#9a9a92', '#6a6a62', 10), len: 1.2, h: .22, w: .2, fin: .01, tailH: .12, flipper: 1 }),
+  '🐒': () => quad({ color: '#8a5a2a', belly: '#d8b090', len: .55, h: .4, head: .17, bigEars: .05, legH: .45, legR: .04, tail: .7, tailR: .025, tailUp: .8, snout: 1, tilt: .5 }),
+  '🐑': () => quad({ color: '#efe8dc', pattern: v => _C('#efe8dc').multiplyScalar(.9 + noise3(v.x * 30, v.y * 30, v.z * 30) * .15), headPattern: solid('#3a3030'), len: .9, h: .6, head: .15, ears: .06, legH: .4, legR: .04, legColor: '#3a3030', snout: 1.4 }),
+  '🐴': () => quad({ color: '#7a4a2a', len: 1.2, h: .55, head: .18, neck: .5, neckR: .11, ears: .09, legH: .75, legR: .055, tail: .5, tailR: .06, tailColor: '#2a1a0a', tailUp: -.4, snout: 2 }),
+  '🐺': () => quad({ color: '#8a8a8a', belly: '#d8d8d0', len: .95, h: .42, head: .18, ears: .11, legH: .45, legR: .05, tail: .5, tailR: .07, tailR2: .04, tailUp: -.1, snout: 1.8, snoutTaper: .6 }),
+  '🐊': () => { const g = lizard('#4a6a3a'); g.scale.set(1.6, 1, 1.3); return g; }, '🐼': () => quad({ color: '#f4f2ee', pattern: v => (Math.abs(v.x) < .2 ? _C('#1a1a1a') : _C('#f4f2ee')), len: 1, h: .6, head: .25, ears: .07, earColor: '#1a1a1a', legH: .35, legR: .12, legColor: '#1a1a1a', snout: 1.2 }),
+  '🦇': () => { const g = bird({ color: '#3a2a2a', beak: .03, beakColor: '#3a2a2a', spread: 1 }); return g; }, '🪰': () => bug({ color: '#2a2a2a', abd: .2, wings: '#d0d8e0' }), '🕷': () => { const g = bug({ color: '#2a1a1a', abd: .3 }); return g; },
+});
+CREATURES['🐯'] = CREATURES['🐅']; CREATURES['🐱'] = CREATURES['🐈']; CREATURES['🦣'] = CREATURES['🐘'];
+/** مخلوقٌ ثلاثيُّ الأبعادِ بحجمٍ يناسبُ s، أو null إن لم يتوفّر */
+export function creature(ch, s = 1) { const f = CREATURES[ch] || CREATURES[ch.replace(/️/g, '')] || CREATURES[ch + '️']; if (!f) return null; reseed(ch.codePointAt(0) % 997 + 3);
+  const inner = f(), g = new THREE.Group(); g.add(inner); const b = new THREE.Box3().setFromObject(inner), sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
+  const k = s * .9 / Math.max(sz.x, sz.y, sz.z * .7); inner.scale.setScalar(k); inner.position.copy(c).multiplyScalar(-k); g.rotation.y = -.45; g.userData.creature = true; return g; }
