@@ -6,6 +6,7 @@ import * as M3 from './models3.js';
 import * as M4 from './models4.js';
 import * as A from './models6a.js';
 import * as B from './models6b.js';
+import * as G4 from './g4bio.js';
 import * as G from './m4a.js';
 import * as H from './m4b.js';
 import { L4_A } from './lessons4a.js';
@@ -18,7 +19,7 @@ import { initPractice } from './practice.js';
 
 const BUILD = { tsunami: M4.tsunamiModel, succession: M3.successionModel,
   organs: A.organsModel, cell: A.cellModel,
-  digestive: B.digestiveModel, lungs: B.lungsModel, heart: B.heartModel, skeleton: B.skeletonModel, nervous: B.nervousModel, foodweb: B.foodwebModel, pyramid: B.pyramidModel,
+  digestive: B.digestiveModel, lungs: B.lungsModel, heart: G4.compareHeartModel, skeleton: G4.frogLegModel, nervous: B.nervousModel, foodweb: B.foodwebModel, pyramid: B.pyramidModel,
   kingdoms: G.kingdomsModel, taxonomy: G.taxonomyModel, invert: G.invertModel, spine: G.spineModel,
   pond: H.pondModel, biomes: H.biomesModel, roles: H.rolesModel, chain: H.chainModel, eco: H.ecoModel, germs: H.germsModel, spread: H.spreadModel, immune: H.immuneModel, hygiene: H.hygieneModel, plate: H.plateModel, foodpyr: H.foodpyrModel };
 const PW = BOOK.w, PH = BOOK.h, AR = PW / PH, N = BOOK.pages;
