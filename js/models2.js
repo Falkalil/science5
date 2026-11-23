@@ -1,5 +1,5 @@
 // مجسّمات الوحدة الأولى (٢): الفراولة، الإخصاب، البيضة، الزهرة، دورة حياة النبات الزهري
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, cellTexture, noiseTexture, Flow, lerp, clamp, ease } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, cellTexture, noiseTexture, Flow, lerp, clamp, ease, tissue, tissueBump } from './kit.js';
 
 // ورقة ثلاثية (فراولة)
 function trifoliate(size, m) {
@@ -198,28 +198,28 @@ export function eggModel(api) {
 export function flowerModel(api) {
   const root = new THREE.Group(); root.position.y = -1.2;
   // البتلات
-  const petals = []; const petalM = mat('#ffc21f', { side: 2, roughness: .5 });
-  for (let i = 0; i < 5; i++) {
+  const petals = []; const petalM = new THREE.MeshPhysicalMaterial({ vertexColors: true, side: 2, roughness: .5, sheen: .35, sheenColor: new THREE.Color('#fff2a0'), clearcoat: .25, bumpMap: tissueBump('vein', 12), bumpScale: .6 });
+  for (let i = 0; i < 6; i++) {
     const g = new THREE.PlaneGeometry(2, 1, 16, 20); const p = g.attributes.position;
     for (let k = 0; k < p.count; k++) { const u = p.getX(k), v = p.getY(k) + .5; const w = Math.sqrt(Math.max(0, Math.sin(Math.PI * (0.12 + 0.86 * v)))) * (0.45 + 0.75 * v);
       const r = 0.25 + v * 2.5, lat = u * w, hgt = 0.15 + v * v * 1.3 + 0.35 * u * u * v; p.setXYZ(k, lat, hgt, r); }
-    g.computeVertexNormals();
-    const pv = new THREE.Group(); pv.rotation.y = i / 5 * Math.PI * 2; const pm = new THREE.Mesh(g, petalM); pm.castShadow = true; pv.add(pm); pv.position.y = 0.55; root.add(pv); petals.push({ pv, pm });
+    g.computeVertexNormals(); { const P = g.attributes.position, col = new Float32Array(P.count * 3), c = new THREE.Color(); for (let k = 0; k < P.count; k++) { const v = (P.getZ(k) - .25) / 2.5; c.set('#6aa83a').lerp(new THREE.Color('#f0b000'), THREE.MathUtils.smoothstep(v, .02, .3)).lerp(new THREE.Color('#ffcc10'), THREE.MathUtils.smoothstep(v, .6, 1) * .6); col.set([c.r, c.g, c.b], k * 3); } g.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+    const pv = new THREE.Group(); pv.rotation.y = i / 6 * Math.PI * 2 + (i % 2) * .08; const pm = new THREE.Mesh(g, petalM); pm.castShadow = true; pv.add(pm); pv.position.y = 0.55; root.add(pv); petals.push({ pv, pm });
   }
   // السبلات
-  const sepals = []; const sepM = mat('#3e9a35', { side: 2 });
+  const sepals = []; const sepM = tissue('#3e9a35', { kind: 'vein', side: 2 });
   for (let i = 0; i < 5; i++) { const g = new THREE.ConeGeometry(.35, 1.4, 4, 1, true); const pv = new THREE.Group(); pv.rotation.y = i / 5 * 7 + .6; const s = mesh(g, sepM, [0, 0, .5], [-2.3, 0, 0]); s.scale.set(1, 1, .25); pv.add(s); pv.position.y = .45; root.add(pv); sepals.push(s); }
-  root.add(mesh(new THREE.CylinderGeometry(.22, .28, 1.4, 16), mat('#3e9a35'), [0, -.25, 0]));
+  root.add(mesh(new THREE.CylinderGeometry(.22, .28, 1.4, 24), tissue('#4a9a35', { kind: 'vein' }), [0, -.25, 0]));
   // الكربلة: مبيض + قلم + ميسم
   const ovProf = []; for (let i = 0; i <= 24; i++) { const t = i / 24; ovProf.push(new THREE.Vector2(Math.sin(t * Math.PI) * .42 + (t > .8 ? 0 : 0), t * 1.3)); }
-  const ovM = mat('#f0661e', { side: 2, roughness: .45 });
+  const ovM = tissue('#7cbf45', { kind: 'pore', side: 2, bumpScale: .8 });
   let ovary = new THREE.Mesh(new THREE.LatheGeometry(ovProf, 40), ovM); ovary.position.y = 0.4; root.add(ovary);
   const ovules = new THREE.Group(); root.add(ovules); for (let i = 0; i < 4; i++) ovules.add(mesh(new THREE.SphereGeometry(.09, 16, 12), mat('#f7f25a', { emissive: '#aa9900', emissiveIntensity: .3 }), [0, .65 + i * .22, 0]));
   const styleC = curve([[0, 1.6, 0], [0, 2.6, 0], [0.05, 3.6, 0], [0.12, 4.3, 0]]);
-  const style = mesh(new THREE.TubeGeometry(styleC, 30, .13, 16), mat('#e9561c', { roughness: .4 })); root.add(style);
-  const stigma = mesh(new THREE.SphereGeometry(.24, 24, 16), mat('#d43a1a', { roughness: .7 }), [0.12, 4.35, 0]); stigma.scale.set(1.2, .7, 1.2); root.add(stigma);
+  const style = mesh(new THREE.TubeGeometry(styleC, 30, .13, 16), tissue('#8fcb55', { kind: 'pore', bumpScale: .5 })); root.add(style);
+  const stigma = mesh(new THREE.SphereGeometry(.24, 24, 16), tissue('#b9d44a', { kind: 'pore', bumpScale: 2.5, roughness: .7 }), [0.12, 4.35, 0]); stigma.scale.set(1.2, .7, 1.2); root.add(stigma);
   // الأسدية: خيوط + متوك
-  const filaments = [], anthers = []; const filM = mat('#e78ac2'), antM = mat('#e2447e', { roughness: .8 });
+  const filaments = [], anthers = []; const filM = tissue('#efe6a8', { kind: 'pore', bumpScale: .3 }), antM = tissue('#c8861e', { kind: 'pore', bumpScale: 2.5, roughness: .7 });
   for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, r = .55 + (i % 2) * .15, h = 3.0 + (i % 3) * .5; const c = curve([[Math.cos(a) * .3, .9, Math.sin(a) * .3], [Math.cos(a) * r * .9, h * .55, Math.sin(a) * r * .9], [Math.cos(a) * r * 1.6, h, Math.sin(a) * r * 1.6]]); const f = mesh(new THREE.TubeGeometry(c, 20, .035, 8), filM); root.add(f); filaments.push(f); const an = mesh(new THREE.CapsuleGeometry(.11, .32, 6, 12), antM); an.position.copy(c.getPoint(1)); an.lookAt(c.getPoint(1).add(c.getTangent(1))); an.rotateX(Math.PI / 2); root.add(an); anthers.push(an); }
   // حبوب اللقاح والنحلة
   const pollen = new Flow(root, '#ffd400', .06, 40); pollen.on = false; pollen.rate = 6;
