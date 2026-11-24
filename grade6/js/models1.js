@@ -21,18 +21,22 @@ export function virus(api) {
   // الفيروس: رأس متعدد الأوجه + ذيل + أرجل
   function makeVirus(s = 1) {
     const g = new THREE.Group();
-    const headM = mat('#a7d43a', { emissive: '#3d5a00', emissiveIntensity: .25, flatShading: true, roughness: .4 });
-    const head = mesh(new THREE.IcosahedronGeometry(0.32, 0), headM, [0, 0.55, 0]); g.add(head);
-    const core = mesh(new THREE.SphereGeometry(0.12, 12, 10), mat('#2f4a07'), [0, 0.55, 0.22]); g.add(core);
-    const tailM = mat('#7bbf3a', { roughness: .5 });
-    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 12), tailM, [0, 0.12, 0]));
+    const headM = new THREE.MeshPhysicalMaterial({ color: '#b6dc3a', emissive: '#3d5a00', emissiveIntensity: .2, flatShading: true, roughness: .3, clearcoat: .8, transparent: true, opacity: .85 });
+    const hg = new THREE.IcosahedronGeometry(0.3, 0); hg.scale(1, 1.35, 1);
+    const head = mesh(hg, headM, [0, 0.7, 0]); g.add(head);
+    const core = mesh(new THREE.TorusKnotGeometry(0.1, 0.018, 64, 6, 2, 5), mat('#2f5a07', { emissive: '#3a7a10', emissiveIntensity: .4 }), [0, 0.7, 0]); g.add(core);
+    const tailM = mat('#8fc43a', { roughness: .45, clearcoat: .5 });
+    g.add(mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.06, 16), tailM, [0, 0.36, 0]));
+    for (let k = 0; k < 9; k++) g.add(mesh(new THREE.TorusGeometry(0.06, 0.018, 8, 18), tailM, [0, 0.31 - k * .045, 0], [Math.PI / 2, 0, 0]));
+    g.add(mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.42, 12), tailM, [0, 0.12, 0]));
+    g.add(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 6), tailM, [0, -0.11, 0]));
     for (let k = 0; k < 6; k++) {
       const a = k / 6 * Math.PI * 2, x = Math.cos(a), z = Math.sin(a);
-      g.add(tube([[0, -0.12, 0], [x * .18, -0.2, z * .18], [x * .34, -0.36, z * .34], [x * .42, -0.52, z * .42]], 0.022, tailM, 16, 6));
+      g.add(tube([[x * .12, -0.11, z * .12], [x * .38, -0.02, z * .38], [x * .48, -0.3, z * .48], [x * .5, -0.5, z * .5]], 0.016, tailM, 20, 6));
     }
     g.scale.setScalar(s); return g;
   }
-  const vir = makeVirus(1); root.add(vir);
+  const vir = makeVirus(1.5); root.add(vir);
   const surf = V(0.55, 1.5, 0.35).normalize().multiplyScalar(1.62);
   function placeOnCell(obj, dir, dist) { const d = dir.clone().normalize(); obj.position.copy(d.clone().multiplyScalar(dist)); obj.quaternion.setFromUnitVectors(V(0, 1, 0), d); }
   // فيروسات جديدة داخل الخلية
@@ -75,9 +79,9 @@ export function virus(api) {
     tStep += dt; const k = ease(tStep / 1.6);
     const outDir = surf.clone().normalize();
     vir.visible = step < 4 || tStep < 0.3;
-    if (step === 0) { placeOnCell(vir, outDir, 2.9 + Math.sin(performance.now() / 600) * 0.12); }
-    else if (step === 1) placeOnCell(vir, outDir, lerp(2.9, 2.05, k));
-    else placeOnCell(vir, outDir, 2.05);
+    if (step === 0) { placeOnCell(vir, outDir, 3.4 + Math.sin(performance.now() / 600) * 0.12); }
+    else if (step === 1) placeOnCell(vir, outDir, lerp(3.4, 2.38, k));
+    else placeOnCell(vir, outDir, 2.38);
     // المادة الوراثية تدخل الخلية
     dna.visible = step === 2; if (dna.visible) { dna.position.copy(outDir.clone().multiplyScalar(lerp(1.6, 0.6, k))); dna.scale.setScalar(.6 + k * .4); }
     const cutaway = step >= 2 && step < 4;
