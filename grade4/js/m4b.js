@@ -1,5 +1,5 @@
 // مجسّمات الصف الرابع (٢): الأنظمة البيئية وصحة الإنسان
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, pine, cloud, arrowTube, house } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, pine, cloud, arrowTube, house, organGeo, vessel, tissue } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 import { node } from './m4a.js';
 const TAU = Math.PI * 2;
@@ -207,7 +207,14 @@ export function germsModel(api) {
 }
 
 /* ═════════ ٧) انتقال العدوى بالرذاذ (ص ١٤٣ و١٥٣) ═════════ */
-function person(c, skin = '#e8c09a') { const g = new THREE.Group(); g.add(mesh(new THREE.CapsuleGeometry(.38, 1.1, 8, 16), mat(c), [0, .9, 0])); g.add(mesh(new THREE.SphereGeometry(.3, 20, 16), mat(skin), [0, 2.05, 0])); g.add(mesh(new THREE.SphereGeometry(.3, 20, 10, 0, TAU, 0, Math.PI / 2.3), mat('#2a1a10'), [0, 2.12, 0])); return g; }
+function person(c, skin = '#e8c09a') { const g = new THREE.Group(); const sk = tissue(skin, { kind: 'pore', bumpScale: .3, clearcoat: .1, roughness: .6 }), cl = new THREE.MeshPhysicalMaterial({ color: c, roughness: .8, sheen: .6, sheenColor: new THREE.Color('#ffffff') }), hair = mat('#2a1e16', { roughness: .9 });
+  const prof = [[0, .05], [.3, .05], [.32, .4], [.3, 1.0], [.27, 1.25], [.3, 1.55], [.36, 1.72], [.3, 1.82], [.12, 1.88], [0, 1.9]].map(([r, y]) => new THREE.Vector2(r, y)); const robe = new THREE.Mesh(new THREE.LatheGeometry(prof, 48), cl); robe.scale.z = .62; g.add(robe);
+  for (const s of [-1, 1]) { g.add(vessel([[s * .34, 1.74, 0], [s * .42, 1.35, .02], [s * .38, .98, .08]], .085, .065, cl, 16, 10)); g.add(mesh(organGeo(.07, v => { v.y *= 1.5; v.z *= .6; }), sk, [s * .38, .9, .1])); g.add(mesh(organGeo(.09, v => { v.z *= 2; v.y *= .6; }), mat('#3a2a1e'), [s * .12, .06, .1])); }
+  g.add(mesh(new THREE.CylinderGeometry(.07, .08, .14, 16), sk, [0, 1.95, 0]));
+  const head = mesh(organGeo(.17, v => { v.y *= 1.25; v.z *= 1.08; if (v.y < -.05) { v.x *= 1 + v.y * .9; } }), sk, [0, 2.15, 0]); g.add(head);
+  g.add(mesh(new THREE.SphereGeometry(.18, 24, 14, 0, TAU, 0, Math.PI / 2.1), hair, [0, 2.2, -.02], [-.25, 0, 0], [1, 1.05, 1.08]));
+  g.add(mesh(organGeo(.03, v => { v.y *= 1.3; v.z *= 1.2; }), sk, [0, 2.13, .18])); for (const s of [-1, 1]) { g.add(mesh(new THREE.SphereGeometry(.018, 8, 6), mat('#1a1410'), [s * .06, 2.18, .155])); g.add(mesh(organGeo(.035, v => { v.z *= .5; v.y *= 1.4; }), sk, [s * .17, 2.15, 0])); }
+  return g; }
 export function spreadModel(api) {
   const root = new THREE.Group(); let dist = 1, cover = false, t = 0, burst = 0;
   const floor = mesh(new THREE.BoxGeometry(8, .1, 3), mat('#e8e2d4'), [0, -.05, 0]); root.add(floor);
@@ -284,7 +291,13 @@ export function immuneModel(api) {
 export function hygieneModel(api) {
   const root = new THREE.Group(); let washing = 0, t = 0;
   const skin = mat('#e8b890', { roughness: .6 });
-  const hand = new THREE.Group(); hand.add(mesh(new THREE.BoxGeometry(1.2, 1.3, .35), skin, [0, 0, 0])); for (let i = 0; i < 4; i++) { hand.add(mesh(new THREE.CapsuleGeometry(.13, .7 - Math.abs(i - 1.5) * .12, 6, 10), skin, [-.42 + i * .28, 1.05 - Math.abs(i - 1.5) * .06, 0])); } hand.add(mesh(new THREE.CapsuleGeometry(.14, .5, 6, 10), skin, [.75, .1, .05], [0, 0, -.8])); hand.add(mesh(new THREE.CylinderGeometry(.45, .5, 1, 20), skin, [0, -1.1, 0])); hand.position.set(0, .3, 0); root.add(hand);
+  const hand = new THREE.Group(); { const sk = tissue('#e8b890', { kind: 'pore', bumpScale: .5, clearcoat: .2, roughness: .55 });
+    hand.add(mesh(organGeo(1, v => { const k = Math.pow(Math.abs(v.x), .6) * Math.sign(v.x); v.x = k * .55; v.y *= .66; v.z *= .17; if (v.y > .3) v.x *= 1.05; v.z *= 1 - Math.max(0, v.y) * .25; }), sk, [0, 0, 0]));
+    const F = [[-.42, .62, .78], [-.15, .7, .92], [.13, .68, .86], [.38, .6, .68]]; F.forEach(([x, y, L], i) => { const segs = [.42, .32, .26].map(k => k * L), pts = [[x, y - .3, 0]]; let yy = y - .3 + .15, zz = 0; pts.push([x, yy, 0]); segs.forEach((l, j) => { yy += l; zz += l * .08 * (j + 1); pts.push([x * (1 + j * .04), yy, zz]); });
+      hand.add(vessel(pts, .095 - i * .002, .075, sk, 24, 12, .01)); hand.add(mesh(organGeo(.07, v => { v.z *= .35; v.y *= 1.3; }), mat('#f3d0c0', { roughness: .3, clearcoat: .8 }), [pts[4][0], pts[4][1] - .06, pts[4][2] + .06])); });
+    hand.add(vessel([[.45, -.25, .05], [.72, .0, .12], [.88, .25, .18], [.95, .45, .22]], .11, .085, sk, 20, 12, .01));
+    hand.add(vessel([[0, -.45, 0], [0, -1.1, 0], [0, -1.7, 0]], .34, .3, sk, 20, 20, .01)); hand.children[hand.children.length - 1].scale.z = .55; }
+  hand.position.set(0, .3, 0); root.add(hand);
   const germs = []; const gm = mat('#4ac83a', { emissive: '#2a8a1a', emissiveIntensity: .4 }); for (let i = 0; i < 26; i++) { const g = mesh(new THREE.IcosahedronGeometry(.06, 0), gm, [(Math.random() - .5) * 1.1, (Math.random() - .5) * 1.2 + (Math.random() < .4 ? .9 : 0), .2]); hand.add(g); germs.push(g); }
   const tap = new THREE.Group(); tap.add(mesh(new THREE.CylinderGeometry(.1, .1, 1.2, 12), mat('#c8ccd4', { metalness: .8, roughness: .2 }), [0, 0, 0], [0, 0, Math.PI / 2])); tap.add(mesh(new THREE.CylinderGeometry(.09, .09, .4, 12), mat('#c8ccd4', { metalness: .8, roughness: .2 }), [.55, -.2, 0])); tap.position.set(-.6, 2.7, 0); root.add(tap);
   const water = new Flow(root, '#8ad0ff', .05, 40); water.addPath(curve([[-.05, 2.45, 0], [-.05, 1.6, 0], [0, .8, .1]]), .8); water.rate = 0;

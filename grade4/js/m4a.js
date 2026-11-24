@@ -1,5 +1,5 @@
 // مجسّمات الصف الرابع (١): التصنيف والحيوانات
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, arrowTube } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, arrowTube, vessel, vesselGeo, mergeGeos } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 
 export function node(root, ch, pos, s = .9, bg = 'rgba(255,255,255,.85)') {
@@ -152,6 +152,26 @@ export function spineModel(api) {
   const trunk = mesh(new THREE.CapsuleGeometry(.55, 2.6, 10, 24), glass('#7ad08a', .45), [0, .9, 0], [0, 0, Math.PI / 2]); body.add(trunk);
   const head = mesh(new THREE.SphereGeometry(.5, 24, 18), clay, [-1.95, 1.35, 0]); body.add(head);
   const legs = []; for (const [x, z] of [[-1, -.35], [-1, .35], [1, -.35], [1, .35]]) { const l = mesh(new THREE.CylinderGeometry(.16, .14, 1.1, 12), clay, [x, .05, z]); body.add(l); legs.push(l); }
+  /* هيكلُ سمكةٍ مفلطحةٍ شفّافة (العظامُ ملوّنةٌ كما في صورةِ الكتاب) */
+  const fish = new THREE.Group(); fish.position.set(0, 1.2, 0); root.add(fish); let fishMode = true;
+  const bodyM = new THREE.MeshPhysicalMaterial({ color: '#f4e6e8', transparent: true, opacity: .32, roughness: .2, clearcoat: 1, depthWrite: false, side: 2 });
+  const fb = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), bodyM); fb.scale.set(2.3, 1.05, .16); fb.renderOrder = 5; fish.add(fb);
+  const boneM = new THREE.MeshPhysicalMaterial({ color: '#d0287a', roughness: .35, clearcoat: .6 }), cartM = new THREE.MeshPhysicalMaterial({ color: '#4a7ad8', roughness: .35, clearcoat: .6 });
+  const fv = [], rays = [], spines = []; const vG = new THREE.CylinderGeometry(.045, .045, .085, 12); vG.rotateZ(Math.PI / 2);
+  const outline = x => 1.05 * Math.sqrt(Math.max(0, 1 - Math.pow(x / 2.3, 2)));
+  for (let i = 0; i < 34; i++) { const x = -1.35 + i * .095, y = .02 + Math.sin(i * .1) * .02; const v = mesh(vG, boneM, [x, y, 0]); fish.add(v); fv.push(v);
+    const h = outline(x) * .82, lean = .35;
+    spines.push(vesselGeo([[x, y + .04, 0], [x + lean * .5 * h, y + h * .55, 0], [x + lean * h, y + h * .95, 0]], .012, .006, 8, 5, 0));
+    spines.push(vesselGeo([[x, y - .04, 0], [x + lean * .5 * h, y - h * .55, 0], [x + lean * h, y - h * .95, 0]], .012, .006, 8, 5, 0)); }
+  for (let i = 0; i < 46; i++) { const x = -1.6 + i * .082; if (x > 1.9) break; const h = outline(x); for (const s2 of [1, -1]) { if (s2 < 0 && x < -.9) continue; rays.push(vesselGeo([[x, s2 * h * .92, 0], [x + .05, s2 * (h + .12), 0], [x + .1, s2 * (h + .28), 0]], .007, .004, 6, 4, 0)); } }
+  for (let i = 0; i < 16; i++) { const a = (i / 15 - .5) * 1.3; rays.push(vesselGeo([[1.9, 0, 0], [2.3 + Math.cos(a) * .2, Math.sin(a) * .35, 0], [2.4 + Math.cos(a) * .5, Math.sin(a) * .7, 0]], .009, .005, 8, 4, 0)); }
+  const spM = new THREE.Mesh(mergeGeos(spines), boneM), rayM = new THREE.Mesh(mergeGeos(rays), cartM); fish.add(spM, rayM);
+  const skull = new THREE.Group(); fish.add(skull);
+  skull.add(mesh(new THREE.SphereGeometry(.45, 40, 28), new THREE.MeshPhysicalMaterial({ color: '#e04a8a', transparent: true, opacity: .55, roughness: .3, clearcoat: .8 }), [-1.7, .1, 0], null, [1, .9, .2]));
+  skull.add(mesh(new THREE.TorusGeometry(.16, .035, 10, 28), boneM, [-1.78, .3, .03]), mesh(new THREE.SphereGeometry(.12, 20, 14), new THREE.MeshPhysicalMaterial({ color: '#1a1a1a', roughness: .1, clearcoat: 1 }), [-1.78, .3, .06]));
+  skull.add(vessel([[-2.18, -.05, 0], [-2.0, -.22, 0], [-1.6, -.28, 0]], .035, .03, boneM, 12, 8), vessel([[-2.2, .02, 0], [-1.95, .05, 0], [-1.7, .0, 0]], .03, .025, boneM, 12, 8));
+  skull.add(vessel([[-1.3, .55, 0], [-1.25, 0, 0], [-1.35, -.6, 0]], .03, .025, cartM, 16, 8));
+  for (let i = 0; i < 10; i++) rays.length; const pect = []; for (let i = 0; i < 9; i++) { const a = -.6 + i * .12; pect.push(vesselGeo([[-1.15, -.15, .05], [-.85 + Math.cos(a) * .1, -.15 + Math.sin(a) * .35, .08], [-.6 + Math.cos(a) * .2, -.15 + Math.sin(a) * .6, .1]], .008, .004, 8, 4, 0)); } fish.add(new THREE.Mesh(mergeGeos(pect), cartM));
   // العمود الفقري
   const spine = new THREE.Group(); body.add(spine); const verts = [], discs = [];
   for (let i = 0; i < 15; i++) { const x = -1.6 + i * .23; const v = mesh(new THREE.CylinderGeometry(.09, .09, .16, 14), mat('#f5f0e0', { roughness: .5 }), [x, 1.05, 0], [0, 0, Math.PI / 2]); spine.add(v); verts.push(v); const sp = mesh(new THREE.BoxGeometry(.05, .16, .05), mat('#efe6cc'), [x, 1.2, 0]); spine.add(sp); verts.push(sp); if (i < 14) { const d = mesh(new THREE.CylinderGeometry(.07, .07, .06, 12), mat('#7fb6e8'), [x + .115, 1.05, 0], [0, 0, Math.PI / 2]); spine.add(d); discs.push(d); } }
@@ -163,14 +183,18 @@ export function spineModel(api) {
   const C = [['🐟', 'الأسماك', 'متغيرة'], ['🐸', 'البرمائيات', 'متغيرة'], ['🦎', 'الزواحف', 'متغيرة'], ['🐦', 'الطيور', 'ثابتة'], ['🐘', 'الثدييات', 'ثابتة']];
   const ring = new THREE.Group(); ring.position.set(0, 2.4, -1.4); root.add(ring); const cn = C.map(([e, n, k], i) => { const nd = node(ring, e, [-2.4 + i * 1.2, 0, 0], .7, k === 'ثابتة' ? 'rgba(255,190,150,.9)' : 'rgba(150,200,255,.9)'); return nd; });
   function apply() {
+    fish.visible = fishMode; body.visible = weights.visible = ground.visible = lab.visible = !fishMode; ring.position.y = fishMode ? 3.1 : 2.4;
     const cap = hasSpine ? 6 : 1; const over = Math.max(0, load - cap); sag = hasSpine ? Math.min(.15, load * .02) : Math.min(1, .15 + load * .18);
     spine.visible = hasSpine; balls.forEach((b, i) => b.visible = i < load);
     setTxt(lab, hasSpine ? (load ? `يحملُ ${'٠١٢٣٤٥٦'[load]} كراتٍ دونَ أن ينهار — العمودُ الفقريُّ يدعمُ الجسم` : 'نموذجٌ له عمودٌ فقريّ (قلم)') : (load > 1 ? 'انهارَ النموذج! لا يوجدُ ما يدعمُ الجسم' : 'نموذجٌ بلا عمودٍ فقريّ'), hasSpine ? '#1a6a3a' : '#a02020');
   }
   apply();
   const parts = [
-    { id: 'vert', name: 'الفقرات (العمود الفقري)', info: 'العمودُ الفقريُّ جزءٌ من الهيكلِ الداخليِّ يدعمُ الجسمَ ويسمحُ بحرّيةِ الحركةِ للحيواناتِ الثقيلة، وهو ما يميّزُ الفقارياتِ من اللافقاريات.', objs: verts, at: anchor(spine, [.3, 1.35, 0]), hidden: () => !hasSpine },
-    { id: 'cord', name: 'الحبل الشوكي', info: 'يمتدُّ داخلَ الفقراتِ التي تحميه، ويوصلُ الإشاراتِ العصبيةَ بينَ الدماغِ والجسم.', objs: [cord], at: anchor(spine, [1.4, 1.2, 0]), hidden: () => !hasSpine },
+    { id: 'fvert', name: 'العمود الفقري للسمكة', info: 'هل أستطيعُ تحديدَ العمودِ الفقريِّ في هذه السمكة؟ إنّه سلسلةُ الفقراتِ الممتدّةُ من الرأسِ إلى الذيل، وتخرجُ منها أشواكٌ عظميّةٌ إلى أعلى وإلى أسفل.', objs: [...fv, spM], at: anchor(fish, [.2, .25, .1]), hidden: () => !fishMode },
+    { id: 'fskull', name: 'الجمجمة (إثراء)', info: 'تحمي الجمجمةُ الدماغَ والعينين، وتتّصلُ بالعمودِ الفقريّ.', objs: skull.children, at: anchor(fish, [-1.7, .7, .1]), hidden: () => !fishMode },
+    { id: 'frays', name: 'أشعّة الزعانف (إثراء)', info: 'عظامٌ رفيعةٌ تدعمُ الزعانفَ التي تساعدُ السمكةَ على السباحةِ والتوازن.', objs: [rayM], at: anchor(fish, [1.2, 1.15, .1]), hidden: () => !fishMode },
+    { id: 'vert', name: 'الفقرات (العمود الفقري)', info: 'العمودُ الفقريُّ جزءٌ من الهيكلِ الداخليِّ يدعمُ الجسمَ ويسمحُ بحرّيةِ الحركةِ للحيواناتِ الثقيلة، وهو ما يميّزُ الفقارياتِ من اللافقاريات.', objs: verts, at: anchor(spine, [.3, 1.35, 0]), hidden: () => !hasSpine || fishMode },
+    { id: 'cord', name: 'الحبل الشوكي', info: 'يمتدُّ داخلَ الفقراتِ التي تحميه، ويوصلُ الإشاراتِ العصبيةَ بينَ الدماغِ والجسم.', objs: [cord], at: anchor(spine, [1.4, 1.2, 0]), hidden: () => !hasSpine || fishMode },
     { id: 'legs', name: 'الأرجل', info: 'في النموذجِ الثالثِ تمثّلُ الأقلامُ في الأرجلِ عظامَ الأرجلِ التي تحملُ وزنَ الجسمِ أيضًا.', objs: legs, at: anchor(body, [1, -.2, .4]) },
     ...cn.map((nd, i) => ({ id: 'c' + i, name: C[i][1], info: `فقارياتٌ ${C[i][2]} درجةِ الحرارة.`, objs: [nd.p], at: anchor(nd.g, [0, .5, 0]) }))
   ];
@@ -179,7 +203,7 @@ export function spineModel(api) {
     update(dt) { t += dt; const cur = trunk.userData.s || 0; const s = lerp(cur, sag, Math.min(1, dt * 4)); trunk.userData.s = s; body.position.y = -s * .9; trunk.scale.set(1 + s * .3, 1 - s * .25, 1 + s * .5); legs.forEach(l => { l.scale.y = 1 - s * .6; l.position.y = .05 - s * .3; }); weights.position.y = -s * 1.1; cn.forEach((n, i) => n.g.position.y = Math.sin(t * 2 + i) * .06); },
     cam: { pos: [.5, 2.6, 8.4], target: [0, .9, 0] }, inpage: { pos: [.4, 2.4, 8.6], target: [0, .9, 0] },
     controls: [
-      { type: 'seg', label: 'النموذج', options: ['له عمودٌ فقريّ', 'بلا عمودٍ فقريّ'], value: 0, on: k => { hasSpine = k === 0; apply(); api.refreshParts && api.refreshParts(); } },
+      { type: 'seg', label: 'النموذج', options: ['هيكل سمكة (الكتاب)', 'له عمودٌ فقريّ', 'بلا عمودٍ فقريّ'], value: 0, on: k => { fishMode = k === 0; hasSpine = k !== 2; apply(); api.refreshParts && api.refreshParts(); } },
       { type: 'slider', label: 'كرات الصلصال (الوزن)', min: 0, max: 6, step: 1, value: 0, fmt: v => '٠١٢٣٤٥٦'[Math.round(v)], on: v => { load = Math.round(v); apply(); } }
     ],
     legend: [['#ffbe96', 'ثابتة درجة الحرارة'], ['#96c8ff', 'متغيرة درجة الحرارة']],
