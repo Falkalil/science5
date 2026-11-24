@@ -34,7 +34,7 @@ const AR = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const _chG = {};
 function chromo(color, len = .5, dup = true) {
   const g = new THREE.Group(); const m = tissue(color, { kind: 'pore', bumpScale: 2.2, roughness: .5, clearcoat: .4 });
-  const geo = _chG[len] || (_chG[len] = organGeo(1, v => { const y = v.y; v.y *= len / 2 + .05; const k = (1 - .35 * Math.exp(-Math.pow(y / .12, 2))) * (1 + fbm3(v.x * 6, v.y * 30, v.z * 6) * .18); v.x *= .055 * k; v.z *= .055 * k; v.x += Math.sin(y * 3) * .012; }, 20, 40));
+  const geo = _chG[len] || (_chG[len] = organGeo(1, v => { const y = v.y; v.y *= len / 2 + .05; const k = (1 - .35 * Math.exp(-Math.pow(y / .12, 2))) * (1 + fbm3(v.x * 6, v.y * 30, v.z * 6) * .18); v.x *= .072 * k; v.z *= .072 * k; v.x += Math.sin(y * 3) * .012; }, 24, 48));
   const a = mesh(geo, m); a.rotation.z = dup ? .32 : 0; g.add(a);
   const b = mesh(geo, m); b.rotation.z = -.32; b.visible = dup; g.add(b);
   g.add(mesh(new THREE.SphereGeometry(.045, 12, 10), tissue('#3a3040', { kind: 'pore' }))); g.userData = { a, b }; return g;
@@ -449,33 +449,49 @@ export function cellcycleModel(api) {
   };
 }
 
-/* ═════════ ٦) الانقسام المتساوي (ص ٥٤–٥٥) ═════════ */
+/* ═════════ ٦) الانقسام المتساوي (ص ٥٤–٥٥) — كروماتين، مغزل، جسيماتٌ مركزيّة، وكروماتيداتٌ تُسحَبُ إلى القطبين ═════════ */
+function chromatinTangle(R, n, cols, seed = 3) { reseed(seed); const geos = cols.map(() => []);
+  for (let k = 0; k < n; k++) { let p = V(srnd() - .5, srnd() - .5, srnd() - .5).multiplyScalar(R), d = V(srnd() - .5, srnd() - .5, srnd() - .5).normalize(); const pts = [p.clone()];
+    for (let i = 0; i < 26; i++) { d.add(V(srnd() - .5, srnd() - .5, srnd() - .5).multiplyScalar(.9)).normalize(); p = p.clone().addScaledVector(d, R * .16); if (p.length() > R * .9) { p.setLength(R * .88); d.negate(); } pts.push(p); }
+    geos[k % cols.length].push(vesselGeo(pts, .016, .016, 80, 5, .2)); }
+  return cols.map((c, i) => new THREE.Mesh(mergeGeos(geos[i]), tissue(c, { kind: 'pore', bumpScale: 1 }))); }
 export function mitosisModel(api) {
-  const root = new THREE.Group(); let step = 0, plant = false, tStep = 1, prev = 0;
-  const cyto = mesh(wobble(new THREE.SphereGeometry(1.6, 64, 44), .05, 1.2), tissue('#f0bccb', { kind: 'pore', transparent: true, opacity: .32, depthWrite: false, side: 2, roughness: .3, bumpScale: .8 })); root.add(cyto);
-  const box = mesh(new THREE.BoxGeometry(3.4, 2.6, 2.6), glass('#bfe7a0', .25, { side: 2 })); root.add(box);
-  const env = mesh(wobble(new THREE.SphereGeometry(.85, 40, 28), .05, 2), tissue('#a774c8', { kind: 'pore', transparent: true, opacity: .33, depthWrite: false, roughness: .3 })); root.add(env);
-  const env2 = [mesh(new THREE.SphereGeometry(.6, 24, 16), glass('#9a5ac0', .35)), mesh(new THREE.SphereGeometry(.6, 24, 16), glass('#9a5ac0', .35))]; env2.forEach(e => root.add(e));
-  const chroma = new THREE.Group(); root.add(chroma); for (let i = 0; i < 4; i++) chroma.add(tube([[-.5, (i - 1.5) * .2, .1], [-.1, (i - 1.5) * .25 + .2, -.2], [.3, (i - 1.5) * .2 - .1, .2], [.5, (i - 1.5) * .22, 0]], .025, mat(['#3a5bd9', '#3a5bd9', '#d93a6a', '#d93a6a'][i]), 20, 6));
-  const cols = ['#3a5bd9', '#5a7be9', '#d93a6a', '#e95a8a'];
-  const chs = cols.map(c => { const g = chromo(c, .42); root.add(g); return g; });
-  const sisters = cols.map(c => { const g = chromo(c, .42, false); root.add(g); return g; });
-  const spindle = new THREE.Group(); root.add(spindle); for (let i = 0; i < 9; i++) { const a = (i - 4) * .13; spindle.add(tube([[-1.5, 0, 0], [0, Math.sin(a) * 1.1, Math.cos(a) * .3], [1.5, 0, 0]], .008, mat('#888'), 20, 4)); }
-  const plate = mesh(new THREE.BoxGeometry(.06, 2.6, 2.6), mat('#4f8f2a'), [0, 0, 0]); root.add(plate);
-  const L = [[-.1, .55, 0], [.3, .2, .2], [-.3, -.2, -.1], [.15, -.5, .2]];
-  function pose(s) {
-    const mid = [[0, .6, 0], [0, .2, 0], [0, -.2, 0], [0, -.6, 0]];
-    chs.forEach((g, i) => { g.visible = s >= 1 && s < 3; const p = s < 2 ? L[i] : mid[i]; g.position.set(...p); g.rotation.set(0, 0, s >= 2 ? Math.PI / 2 : i); });
-    sisters.forEach((g, i) => { g.visible = s >= 3; const x = s === 3 ? -1.05 : -1.25; g.position.set(i % 2 ? -x : x, mid[i][1] * .9, 0); g.rotation.z = Math.PI / 2; });
-    chroma.visible = s === 0; env.visible = s === 0 || s === 1; env.material.opacity = s === 1 ? .15 : .35;
-    spindle.visible = s === 2 || s === 3; env2.forEach((e, k) => { e.visible = s === 4; e.position.set(k ? 1.25 : -1.25, 0, 0); });
-    const stretch = s >= 3 ? 1.35 : 1; cyto.scale.set(stretch, s === 4 ? .82 : 1, 1); box.scale.set(stretch, 1, 1);
-    cyto.visible = !plant; box.visible = plant; plate.visible = plant && s === 4;
-    if (!plant && s === 4) { cyto.scale.set(1.35, .7, .9); }
+  const root = new THREE.Group(); let step = 0, plant = false; reseed(55);
+  const cytoM = tissue('#f0bccb', { kind: 'pore', transparent: true, opacity: .3, depthWrite: false, side: 2, roughness: .3, bumpScale: .8 });
+  const cyto = mesh(wobble(new THREE.SphereGeometry(1.7, 64, 44), .04, 1.2), cytoM); cyto.renderOrder = 5; root.add(cyto);
+  const daughters = [0, 1].map(k => { const m = mesh(wobble(new THREE.SphereGeometry(1.15, 56, 40), .04, 1.4 + k), cytoM); m.renderOrder = 5; root.add(m); return m; });
+  const wallM = new THREE.MeshPhysicalMaterial({ color: '#a8d98a', transparent: true, opacity: .25, roughness: .4, depthWrite: false, side: 2 }), box = mesh(new THREE.BoxGeometry(3.9, 2.9, 2.6), wallM); box.renderOrder = 6; root.add(box);
+  const gran = []; for (let i = 0; i < 160; i++) { const p = V(srnd() - .5, srnd() - .5, srnd() - .5).normalize().multiplyScalar(.9 + srnd() * .7); const g = new THREE.SphereGeometry(.018 + srnd() * .015, 6, 5); g.translate(p.x, p.y, p.z); gran.push(g); } const granM = mesh(mergeGeos(gran), tissue('#c9869a')); root.add(granM);
+  const envM = tissue('#9a6ac0', { kind: 'pore', transparent: true, opacity: .3, depthWrite: false, roughness: .3 });
+  const env = mesh(wobble(new THREE.SphereGeometry(.85, 48, 32), .04, 2), envM); env.renderOrder = 4; root.add(env);
+  const nucleolus = mesh(organGeo(.18, v => v.multiplyScalar(1 + fbm3(v.x * 9, v.y * 9, v.z * 9) * .15)), tissue('#5a2a6a', { kind: 'pore' }), [.25, .2, .1]); root.add(nucleolus);
+  const COLS = ['#3a5bd9', '#5a7be9', '#d93a6a', '#e95a8a'];
+  const tangle = chromatinTangle(.8, 8, COLS, 5); tangle.forEach(m => root.add(m));
+  const dTangle = [0, 1].map(k => { const g = new THREE.Group(); chromatinTangle(.5, 6, COLS, 9 + k).forEach(m => g.add(m)); g.add(mesh(wobble(new THREE.SphereGeometry(.56, 40, 28), .04, 2), envM)); g.children[g.children.length - 1].renderOrder = 4; root.add(g); return g; });
+  /* الكروموسومات المتضاعفة: كروماتيدتانِ ملتصقتانِ عندَ القطعةِ المركزيّة */
+  const chs = COLS.map(c => { const g = chromo(c, .56); g.scale.setScalar(1.25); root.add(g); return g; });
+  const halves = COLS.map(c => [0, 1].map(() => { const g = chromo(c, .56, false); g.scale.setScalar(1.25); root.add(g); return g; }));
+  /* الجسيماتُ المركزيّة والنجميّات */
+  const cenM = tissue('#2a8a6a', { kind: 'vein' }), centro = [-1, 1].map(s => { const g = new THREE.Group(); g.add(mesh(new THREE.CylinderGeometry(.04, .04, .16, 12), cenM), mesh(new THREE.CylinderGeometry(.04, .04, .16, 12), cenM, [0, 0, 0], [Math.PI / 2, 0, 0])); const ast = []; for (let i = 0; i < 22; i++) { const d = V(srnd() - .5, srnd() - .5, srnd() - .5).normalize(); if (d.x * s > .2) continue; ast.push(vesselGeo([[0, 0, 0], d.clone().multiplyScalar(.22).toArray(), d.clone().multiplyScalar(.42).toArray()], .006, .003, 4, 4, 0)); } if (ast.length) g.add(new THREE.Mesh(mergeGeos(ast), new THREE.MeshBasicMaterial({ color: '#7a9a8a', transparent: true, opacity: .7 }))); root.add(g); return g; });
+  const fibM = new THREE.MeshBasicMaterial({ color: '#8a8a9a', transparent: true, opacity: .75 }); let fibers = null;
+  function setFibers(targets, poles) { if (fibers) { root.remove(fibers); fibers.geometry.dispose(); fibers = null; } if (!targets.length) return; const L = [];
+    targets.forEach(([pole, t]) => { const P = poles[pole]; L.push(vesselGeo([P.toArray(), P.clone().lerp(t, .5).add(V(0, (t.y - P.y) * .08, 0)).toArray(), t.toArray()], .007, .007, 10, 4, 0)); });
+    for (let i = 0; i < 6; i++) { const a = (i - 2.5) * .22; L.push(vesselGeo([poles[0].toArray(), [0, Math.sin(a) * 1.05, Math.cos(a) * .35], poles[1].toArray()], .005, .005, 16, 4, 0)); }
+    fibers = new THREE.Mesh(mergeGeos(L), fibM); root.add(fibers); }
+  const plate = mesh(new THREE.BoxGeometry(.05, 2.9, 2.6), tissue('#4f8f2a', { transparent: true, opacity: .7 })); root.add(plate);
+  const YS = [.6, .2, -.2, -.6], ZS = [.25, -.3, .3, -.25], PRO = [[-.25, .35, .15, .4], [.3, .15, -.1, -.5], [-.2, -.25, .2, 1.2], [.25, -.4, -.15, -.9]];
+  function apply() {
+    const s = step, poleX = s <= 1 ? .95 : s === 2 ? 1.6 : 1.85, poles = [V(-poleX, 0, 0), V(poleX, 0, 0)];
+    env.visible = s <= 1; envM.opacity = s === 1 ? .1 : .3; nucleolus.visible = s === 0; tangle.forEach(m => m.visible = s === 0);
+    chs.forEach((g, i) => { g.visible = s === 1 || s === 2; if (s === 1) { g.position.set(PRO[i][0], PRO[i][1], PRO[i][2]); g.rotation.set(.3, .2, PRO[i][3]); } else { g.position.set(0, YS[i], ZS[i]); g.rotation.set(0, 0, 0); g.scale.setScalar(1.0); } if (s === 1) g.scale.setScalar(1.25); });
+    halves.forEach((pair, i) => pair.forEach((g, k) => { g.visible = s === 3; const x = (k ? 1 : -1) * 1.0; g.position.set(x, YS[i] * .75, ZS[i] * .6); g.rotation.set(0, 0, (k ? 1 : -1) * (Math.PI / 2 - .5)); }));
+    centro.forEach((c, k) => { c.visible = s >= 1 && s <= 3; c.position.copy(poles[k]); });
+    if (s === 2) setFibers(chs.flatMap((g, i) => [[0, V(-.08, YS[i], ZS[i])], [1, V(.08, YS[i], ZS[i])]]), poles); else if (s === 3) setFibers(halves.flatMap((pair, i) => pair.map((g, k) => [k, V((k ? 1 : -1) * .95, YS[i] * .75, ZS[i] * .6)])), poles); else setFibers([], poles);
+    const st = s >= 3 ? 1.3 : 1; cyto.visible = !(s === 4 && !plant); cyto.scale.set(st, s >= 3 ? .92 : 1, 1); box.visible = plant; box.scale.set(st, 1, 1); granM.scale.set(st, 1, 1); granM.visible = !(s === 4 && !plant);
+    daughters.forEach((d, k) => { d.visible = s === 4 && !plant; d.position.set(k ? 1.0 : -1.0, 0, 0); });
+    dTangle.forEach((d, k) => { d.visible = s === 4; d.position.set(k ? 1.05 : -1.05, 0, 0); });
+    plate.visible = plant && s === 4;
   }
-  // للانقسام: نُظهر نسخة ثانية من الكروماتيدات في الجهة الأخرى
-  const sisters2 = cols.map(c => { const g = chromo(c, .42, false); root.add(g); return g; });
-  function apply() { pose(step); sisters2.forEach((g, i) => { g.visible = step >= 3; g.position.set(i % 2 ? (step === 3 ? -1.05 : -1.25) : (step === 3 ? 1.05 : 1.25), [.6, .2, -.2, -.6][i] * .9, 0); g.rotation.z = Math.PI / 2; }); }
   apply();
   const steps = [
     { t: '١- النواة واضحة', d: 'تشاهَدُ النواةُ بوضوح، وعندَ بدءِ الانقسامِ المتساوي يتضاعفُ عددُ الكروموسوماتِ في نواةِ الخلية.' },
@@ -485,16 +501,16 @@ export function mitosisModel(api) {
     { t: '٥- خليتان جديدتان', d: 'يتكوّنُ غلافٌ نوويٌّ حولَ كلِّ مجموعةٍ من الكروموسومات، بعدَ ذلك ينقسمُ السيتوبلازمُ وينتجُ خليتان تماثلُ كلٌّ منهما الخليةَ الأصلية.' }
   ];
   const parts = [
-    { id: 'nuc', name: 'النواة (الغلاف النووي)', info: 'تحتوي النواةُ على الكروموسومات، ويتلاشى غلافُها في بدايةِ الانقسامِ ثم يتكوّنُ غلافانِ جديدانِ في النهاية.', objs: [env, ...env2], at: anchor(root, [0, 1, .3]), hidden: () => step === 2 || step === 3 },
-    { id: 'chr', name: 'الكروموسومات المتضاعفة', info: 'تضاعفُ الخليةُ كروموسوماتِها حتى يكونَ لديها مجموعةٌ ثانيةٌ مماثلة، ثم تنقسمُ الخلية.', objs: chs.flatMap(g => g.children), at: anchor(root, [0, .9, .2]), hidden: () => step < 1 || step > 2 },
-    { id: 'spin', name: 'الخيوط التي تسحب الكروموسومات', info: 'تمتدُّ خيوطٌ من طرفَي الخليةِ تساعدُ على اصطفافِ الكروموسوماتِ في الوسطِ ثم انفصالِها إلى الطرفين.', objs: spindle.children, at: anchor(root, [1.2, .4, 0]), hidden: () => !spindle.visible },
-    { id: 'cell', name: 'الخلية (السيتوبلازم)', info: 'في الخلايا الحيوانيةِ يضيقُ الغشاءُ البلازميُّ إلى الداخلِ من وسطِ الخلية، أمّا في الخلايا النباتيةِ فتتكوّنُ صفيحةٌ خلويةٌ تفصلُ بينَ الخليتينِ الجديدتين.', objs: [cyto, box], at: anchor(root, [-1.6, 1.2, .5]) },
-    { id: 'plate', name: 'الصفيحة الخلوية', info: 'بسببِ وجودِ جدارٍ خلويٍّ حولَ الخليةِ النباتيةِ تتكوّنُ صفيحةٌ خلويةٌ تشبهُ امتدادًا للجدارِ الخلويِّ تفصلُ بينَ الخليتينِ الجديدتين.', objs: [plate], at: anchor(root, [0, 1.4, 0]), hidden: () => !plate.visible }
+    { id: 'nuc', name: 'النواة (الغلاف النووي)', info: 'تحتوي النواةُ على الكروموسومات، ويتلاشى غلافُها في بدايةِ الانقسامِ ثم يتكوّنُ غلافانِ جديدانِ في النهاية. (إثراء: قبلَ الانقسامِ تكونُ الكروموسوماتُ خيوطًا رفيعةً متشابكةً لا تُرى بوضوح.)', objs: [env, nucleolus, ...tangle, ...dTangle.flatMap(d => d.children)], at: anchor(root, [0, 1.05, .3]), hidden: () => step === 2 || step === 3 },
+    { id: 'chr', name: 'الكروموسومات المتضاعفة', info: 'تضاعفُ الخليةُ كروموسوماتِها حتى يكونَ لديها مجموعةٌ ثانيةٌ مماثلة، ثم تنقسمُ الخلية. (إثراء: كلُّ كروموسومٍ متضاعفٍ مكوّنٌ من نسختينِ متطابقتينِ متّصلتينِ في الوسط.)', objs: [...chs, ...halves.flat()].flatMap(g => g.children), at: anchor(root, [.35, 1.05, .2]), hidden: () => step === 0 || step === 4 },
+    { id: 'spin', name: 'الخيوط التي تسحب الكروموسومات', info: 'تمتدُّ خيوطٌ من طرفَي الخليةِ تساعدُ على اصطفافِ الكروموسوماتِ في الوسطِ ثم انفصالِها إلى الطرفين. (إثراء: تنشأُ الخيوطُ من الجسيماتِ المركزيّةِ عندَ قطبَي الخلية.)', objs: centro.flatMap(c => c.children), at: anchor(root, [1.4, .45, 0]), hidden: () => step < 1 || step > 3 },
+    { id: 'cell', name: 'الخلية (السيتوبلازم)', info: 'في الخلايا الحيوانيةِ يضيقُ الغشاءُ البلازميُّ إلى الداخلِ من وسطِ الخلية، أمّا في الخلايا النباتيةِ فتتكوّنُ صفيحةٌ خلويةٌ تفصلُ بينَ الخليتينِ الجديدتين.', objs: [cyto, box, ...daughters], at: anchor(root, [-1.3, 1.35, .3]) },
+    { id: 'plate', name: 'الصفيحة الخلوية', info: 'بسببِ وجودِ جدارٍ خلويٍّ حولَ الخليةِ النباتيةِ تتكوّنُ صفيحةٌ خلويةٌ تشبهُ امتدادًا للجدارِ الخلويِّ تفصلُ بينَ الخليتينِ الجديدتين.', objs: [plate], at: anchor(root, [0, 1.6, 0]), hidden: () => !(plant && step === 4) }
   ];
   return {
     root, parts,
     update(dt) { root.rotation.y = Math.sin(performance.now() / 4000) * .25; },
-    cam: { pos: [0, 1.2, 6.5], target: [0, 0, 0] }, inpage: { pos: [0, .5, 6.2], target: [0, 0, 0] },
+    cam: { pos: [0, 1.2, 6.8], target: [0, 0, 0] }, inpage: { pos: [0, .5, 6.6], target: [0, 0, 0] },
     controls: [
       { type: 'steps', value: 0, steps, on: i => { step = i; apply(); api.refreshParts && api.refreshParts(); } },
       { type: 'seg', label: 'نوع الخلية', options: ['حيوانية', 'نباتية'], value: 0, on: k => { plant = k === 1; apply(); } },
@@ -511,16 +527,16 @@ export function mitosisModel(api) {
 /* ═════════ ٧) الانقسام المنصّف (ص ٥٦) ═════════ */
 export function meiosisModel(api) {
   const root = new THREE.Group(); let step = 0;
-  const cellM = tissue('#8fcf5a', { kind: 'pore', transparent: true, opacity: .55, depthWrite: false, bumpScale: 1, roughness: .3, transmission: .2 }), cellG = wobble(new THREE.SphereGeometry(.75, 48, 32), .06, 1.6);
+  const cellM = tissue('#8fcf5a', { kind: 'pore', transparent: true, opacity: .55, depthWrite: false, bumpScale: 1, roughness: .3, transmission: .2 }), cellG = wobble(new THREE.SphereGeometry(.92, 56, 40), .05, 1.6), granG = (() => { reseed(77); const L = []; for (let i = 0; i < 70; i++) { const p = V(srnd() - .5, srnd() - .5, srnd() - .5).normalize().multiplyScalar(.45 + srnd() * .4); const g = new THREE.SphereGeometry(.014 + srnd() * .012, 6, 5); g.translate(p.x, p.y, p.z); L.push(g); } return mergeGeos(L); })(), granMt = tissue('#6a9a3a');
   const stages = [];
-  function cellAt(x, y, contents) { const g = new THREE.Group(); const c = mesh(cellG, cellM); g.add(c); contents.forEach(([col, dx, dy, rz, dup]) => { const k = chromo(col, .3, dup); k.position.set(dx, dy, .1); k.rotation.z = rz; k.scale.setScalar(.9); g.add(k); }); g.position.set(x, y, 0); return { g, c }; }
+  function cellAt(x, y, contents) { const g = new THREE.Group(); const c = mesh(cellG, cellM); c.renderOrder = 5; g.add(c, new THREE.Mesh(granG, granMt)); contents.forEach(([col, dx, dy, rz, dup]) => { const k = chromo(col, .42, dup); k.position.set(dx * 1.25, dy * 1.3, .1); k.rotation.z = rz; g.add(k); }); g.position.set(x, y, 0); return { g, c }; }
   const B = '#3a5bd9', R = '#d93a6a', B2 = '#7a9af0', R2 = '#f07a9a';
   const S = [
     [cellAt(0, 0, [[B, -.25, .2, .3, false], [B2, .25, .2, -.3, false], [R, -.2, -.25, .1, false], [R2, .2, -.25, -.2, false]])],
     [cellAt(0, 0, [[B, -.25, .2, 0, true], [B2, .25, .2, 0, true], [R, -.2, -.25, 0, true], [R2, .2, -.25, 0, true]])],
     [cellAt(0, 0, [[B, -.12, .2, Math.PI / 2, true], [B2, .12, .2, Math.PI / 2, true], [R, -.12, -.2, Math.PI / 2, true], [R2, .12, -.2, Math.PI / 2, true]])],
-    [cellAt(-1, 0, [[B, 0, .2, Math.PI / 2, true], [R2, 0, -.2, Math.PI / 2, true]]), cellAt(1, 0, [[B2, 0, .2, Math.PI / 2, true], [R, 0, -.2, Math.PI / 2, true]])],
-    [cellAt(-2.4, .9, [[B, 0, .15, 0, false], [R2, 0, -.2, 0, false]]), cellAt(-.8, .9, [[B, 0, .15, 0, false], [R2, 0, -.2, 0, false]]), cellAt(.8, -.9, [[B2, 0, .15, 0, false], [R, 0, -.2, 0, false]]), cellAt(2.4, -.9, [[B2, 0, .15, 0, false], [R, 0, -.2, 0, false]])]
+    [cellAt(-1.25, 0, [[B, 0, .2, Math.PI / 2, true], [R2, 0, -.2, Math.PI / 2, true]]), cellAt(1.25, 0, [[B2, 0, .2, Math.PI / 2, true], [R, 0, -.2, Math.PI / 2, true]])],
+    [cellAt(-3.0, 1.1, [[B, 0, .15, 0, false], [R2, 0, -.2, 0, false]]), cellAt(-1.0, 1.1, [[B, 0, .15, 0, false], [R2, 0, -.2, 0, false]]), cellAt(1.0, -1.1, [[B2, 0, .15, 0, false], [R, 0, -.2, 0, false]]), cellAt(3.0, -1.1, [[B2, 0, .15, 0, false], [R, 0, -.2, 0, false]])]
   ];
   S.forEach((arr, i) => { const grp = new THREE.Group(); arr.forEach(o => grp.add(o.g)); root.add(grp); stages.push(grp); });
   const counter = txt('', .42, '#2c4fa8'); counter.position.set(0, 2.1, 0); root.add(counter);
