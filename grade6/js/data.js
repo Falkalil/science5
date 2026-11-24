@@ -35,7 +35,7 @@ export const MODELS = [
   { id: 'flower', unit: 2, build: 'flower', title: 'التلقيح', lesson: 'عمليات الحياة في النباتات', page: 84, cover: [90, 800, 1120, 1330], keep: [], bg: W },
   { id: 'moss', unit: 2, title: 'دورة حياة نبات حزازي', lesson: 'عمليات الحياة في النباتات', page: 86, cover: [140, 500, 1140, 1140], keep: [], bg: W },
   { id: 'digestive', unit: 2, title: 'جهاز الهضم', lesson: 'الهضم والإخراج والتنفس والدوران', page: 111, cover: [80, 95, 560, 940], keep: [], bg: W },
-  { id: 'lungs', unit: 2, title: 'الجهاز التنفسي في الإنسان', lesson: 'الهضم والإخراج والتنفس والدوران', page: 113, cover: [120, 255, 590, 870], keep: [], bg: W },
+  { id: 'lungs', unit: 2, title: 'الجهاز التنفسي في الإنسان', lesson: 'الهضم والإخراج والتنفس والدوران', page: 113, cover: [15, 250, 590, 880], keep: [], bg: W },
   { id: 'heart', unit: 2, title: 'الدوران والتنفس', lesson: 'الهضم والإخراج والتنفس والدوران', page: 116, cover: [150, 110, 1130, 670], keep: [], bg: W },
   { id: 'skeleton', unit: 2, title: 'الجهاز الهيكلي والعضلي', lesson: 'الحركة والإحساس', page: 122, cover: [95, 640, 1140, 1445], keep: [], bg: W },
   { id: 'nervous', unit: 2, title: 'الجهاز العصبي والغدد الصماء', lesson: 'الحركة والإحساس', page: 124, cover: [20, 20, 590, 1460], keep: [], bg: '#eef6e8' },

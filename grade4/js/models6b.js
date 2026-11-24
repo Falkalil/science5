@@ -1,5 +1,5 @@
 // مجسّمات الصف السادس (٢): النباتات وأجهزة الجسم والأنظمة البيئية
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, cloud, arrowTube, noise3, tissue, vessel, mergeGeos, twigs, srnd, reseed, organGeo, fbm3, badge, ArrowFlow, CellFlow, tissueBump } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tree, cloud, arrowTube, noise3, tissue, vessel, mergeGeos, twigs, srnd, reseed, organGeo, fbm3, badge, ArrowFlow, CellFlow, tissueBump, vesselGeo } from './kit.js';
 import { emo, txt, setTxt } from './models6a.js';
 
 /* ═════════ ١) دورة حياة نبات حزازي (ص ٨٦) ═════════ */
@@ -101,52 +101,163 @@ export function digestiveModel(api) {
   };
 }
 
-/* ═════════ ٣) الجهاز التنفسي (ص ١١٣) — أعضاءٌ واقعيّة ═════════ */
+/* ═════════ ٣) الجهاز التنفسي في الإنسان (ص ١١٣) — تشريحٌ دقيقٌ مطابقٌ لشكلِ الكتاب ═════════ */
+/* شكلٌ بارامتريٌّ ملتفّ: f(u,v) → [x,y,z]، مع تنعيمِ خطِّ الالتحام */
+function paramGeo(nu, nv, f) {
+  const pos = [], idx = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = f((i % nu) / nu, j / nv); pos.push(p[0], p[1], p[2]); }
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.userData.nu = nu; g.userData.nv = nv; seamNormals(g); return g;
+}
+function seamNormals(g) {
+  g.computeVertexNormals(); const N = g.attributes.normal, nu = g.userData.nu, nv = g.userData.nv, n = new THREE.Vector3(), m = new THREE.Vector3();
+  for (let j = 0; j <= nv; j++) { const a = j * (nu + 1), b = a + nu; n.fromBufferAttribute(N, a); m.fromBufferAttribute(N, b); n.add(m).normalize(); N.setXYZ(a, n.x, n.y, n.z); N.setXYZ(b, n.x, n.y, n.z); }
+  N.needsUpdate = true;
+}
+/* سطحُ الحجابِ الحاجزِ العلويّ: قبّتانِ تحتَ الرئتين (اليمنى أعلى قليلًا بسببِ الكبد) ومركزٌ وتريٌّ أخفض */
+const DIA0 = .3;
+function diaTop(x, z) { const e = (cx, w, h) => h * Math.exp(-Math.pow((x - cx) / w, 2) - Math.pow(z / .55, 2)); return DIA0 + e(-.6, .42, .5) + e(.6, .42, .44) + e(0, .3, .06); }
+
 export function lungsModel(api) {
   const root = new THREE.Group(); let rate = 1, t = 0, auto = true; root.add(body(.1)); reseed(31);
-  const airM = tissue('#d9b3a2', { kind: 'pore', bumpScale: .5 });
-  const nose = mesh(organGeo(.16, v => { v.z *= 1.6; v.y *= 1.2; if (v.z > 0) v.x *= 1 - v.z * 1.2; }), tissue('#e8b090', { kind: 'pore' }), [0, 3.32, .72]); root.add(nose);
-  const phar = vessel([[0, 3.3, .55], [0, 3.1, .2], [0, 2.75, .05]], .1, .09, airM, 20, 12); root.add(phar);
-  const larynx = mesh(organGeo(.16, v => { v.y *= 1.1; if (v.z > 0) v.z *= 1.3; }), tissue('#d8b8a8'), [0, 2.6, .05]); root.add(larynx);
-  const trachea = new THREE.Group(); trachea.add(vessel([[0, 2.48, .05], [0, 1.95, .05], [0, 1.55, .05]], .12, .115, airM, 30, 16)); for (let i = 0; i < 9; i++) trachea.add(mesh(new THREE.TorusGeometry(.125, .028, 10, 28), tissue('#efe2d6'), [0, 2.4 - i * .1, .05], [Math.PI / 2, 0, 0])); root.add(trachea);
-  const bron = []; const tw = [];
-  for (const s of [-1, 1]) { bron.push(vessel([[0, 1.55, .05], [s * .4, 1.3, .05], [s * .75, 1.1, 0]], .085, .06, airM, 20, 12)); for (let k = 0; k < 4; k++) { const e = V(s * (1 + k * .12), .5 - k * .3, (k - 1.5) * .2); bron.push(vessel([[s * .75, 1.1, 0], [s * (.9 + k * .1), .8 - k * .25, (k - 1.5) * .15], e.toArray()], .04, .025, airM, 12, 8)); twigs(tw, e, V(s * .2, -.6, (k - 1.5) * .3), .13, .016, 4, 1.5); twigs(tw, V(s * (.9 + k * .1), .8 - k * .25, (k - 1.5) * .15), V(s * .5, .4 - k * .3, (k - 1.5) * .4), .14, .016, 4, 1.5); } }
-  bron.push(new THREE.Mesh(mergeGeos(tw), airM)); bron.forEach(b => root.add(b));
-  const lM = tissue('#ec8a97', { transparent: true, opacity: .55, depthWrite: false, bumpScale: 1.4, roughness: .55 });
-  const lungGeo = s => organGeo(1, v => { const t = (v.y + 1) / 2; v.x *= (.5 + t * .2) * (v.x * s > 0 ? 1.15 : .8); v.y *= 1.05 - (v.y > 0 ? v.y * .35 : 0); if (v.y < -.6) v.y += (v.x * s) * .1; v.multiplyScalar(1 + fbm3(v.x * 3 + s, v.y * 3, v.z * 3) * .05); if (s < 0 && v.x * s < -.1 && v.y < .1 && v.z > 0) v.x += s * .12; }, 72, 56);
-  const lungL = mesh(lungGeo(-1), lM, [-1, .5, 0]); lungL.scale.set(.62 / .62, 1.25, .6); const lungR = mesh(lungGeo(1), lM, [1, .5, 0]); lungR.scale.set(1.1, 1.25, .6); lungL.renderOrder = lungR.renderOrder = 2; root.add(lungL, lungR);
-  // عنقودُ الحويصلاتِ الهوائيّةِ مع شعيراتٍ دمويّة
-  const alv = new THREE.Group(); const aM = tissue('#e8707e', { kind: 'pore', clearcoat: 1 }), cap = [];
-  for (let i = 0; i < 16; i++) { const p = V(1.2 + (srnd() - .5) * .32, -.12 + (srnd() - .5) * .3, .3 + (srnd() - .5) * .16); alv.add(mesh(new THREE.SphereGeometry(.055 + srnd() * .025, 18, 14), aM, p.toArray())); twigs(cap, p, V(srnd() - .5, srnd() - .5, 1), .06, .006, 2, 1.6); }
-  const capM = [new THREE.Mesh(mergeGeos(cap), tissue('#b5121d'))]; alv.add(...capM); root.add(alv);
-  const diaph = mesh(new THREE.SphereGeometry(1.6, 48, 16, 0, Math.PI * 2, 0, Math.PI / 3.2), tissue('#b8505a', { side: 2, bumpScale: 1 }), [0, -1.45, 0]); diaph.scale.set(1, .45, .6); root.add(diaph);
-  const o2 = new Flow(root, '#4ab0ff', .05, 50), co2 = new Flow(root, '#9a9a9a', .05, 50);
-  o2.addPath(curve([[0, 3.4, .9], [0, 3.1, .3], [0, 2.6, .05], [0, 1.6, .05], [.6, 1.2, 0], [1.2, -.1, .3]]), .5).addPath(curve([[0, 3.4, .9], [0, 3.1, .3], [0, 2.6, .05], [0, 1.6, .05], [-.6, 1.2, 0], [-1.1, .2, .2]]), .5);
-  co2.addPath(curve([[1.2, -.1, .3], [.6, 1.2, 0], [0, 1.6, .05], [0, 2.6, .05], [0, 3.1, .3], [0, 3.4, 1]]), .5);
+  const mucM = tissue('#d4606c', { kind: 'pore', bumpScale: .6 });            // غشاءُ الأنفِ والفمِ والبلعوم
+  const cartM = tissue('#efd6cc', { kind: 'pore', bumpScale: .5, roughness: .45 }); // الغضاريف
+  const bronM = tissue('#e3c2bb', { kind: 'pore', bumpScale: .4 });
+  const twigM = tissue('#cf6f80', { kind: 'vein', bumpScale: .3 });
+
+  /* ── الأنف والفم والبلعوم ── */
+  const nasal = vessel([[0, 3.4, .8], [0, 3.47, .55], [0, 3.44, .28], [0, 3.3, .06]], .055, .085, mucM, 30, 12, .04);
+  const nostrils = new THREE.Group(); for (const s of [-1, 1]) nostrils.add(mesh(organGeo(.028, v => { v.z *= .5; v.x *= 1.4; }), tissue('#5a1e26'), [s * .045, 3.37, .8]));
+  const oral = vessel([[0, 3.0, .68], [0, 3.05, .45], [0, 3.07, .22], [0, 3.0, .04]], .05, .075, mucM, 30, 12, .03);
+  const lips = mesh(organGeo(.07, v => { v.y *= .35; v.z *= .5; }), tissue('#c25560'), [0, 3.0, .68]);
+  const tongue = mesh(organGeo(.16, v => { v.x *= .85; v.y *= .35; v.z *= 1.5; }), tissue('#d77a82', { kind: 'pore' }), [0, 2.96, .38]);
+  const phar = vessel([[0, 3.32, .02], [0, 3.12, -.04], [0, 2.92, -.02], [0, 2.8, .02]], .09, .08, mucM, 30, 14, .04);
+  /* ── الحنجرة: غضروفٌ درقيٌّ بزاويةٍ أماميةٍ ولسانُ المزمار ── */
+  const larynx = new THREE.Group();
+  larynx.add(mesh(organGeo(.12, v => { v.y *= 1.05; if (v.z > 0) { v.z *= 1.25 - Math.abs(v.x) * 2.2; } v.x *= 1.1; }, 40, 30), cartM, [0, 2.72, .07]));
+  larynx.add(mesh(new THREE.TorusGeometry(.085, .028, 10, 30), cartM, [0, 2.6, .06], [Math.PI / 2, 0, 0]));
+  const epi = mesh(organGeo(.06, v => { v.z *= .25; v.y *= 1.5; }), tissue('#e7b3a8'), [0, 2.88, .0], [-.5, 0, 0]); larynx.add(epi);
+  /* ── القصبةُ الهوائيّة: حلقاتٌ غضروفيّةٌ على شكلِ حرف C مفتوحةٌ من الخلف ── */
+  const CAR = V(0, 1.95, -.04), TR0 = V(0, 2.56, .06);
+  const trachea = new THREE.Group(); trachea.add(vessel([TR0, V(0, 2.25, .02), CAR], .068, .066, bronM, 30, 16, .01));
+  for (let i = 0; i < 13; i++) { const k = i / 13, p = TR0.clone().lerp(CAR, k + .02); const ring = mesh(new THREE.TorusGeometry(.074, .016, 8, 28, Math.PI * 1.55), cartM, p.toArray(), [Math.PI / 2, 0, Math.PI * .5 + Math.PI * .225]); trachea.add(ring); }
+  /* ── الشعبتانِ الهوائيّتانِ الرئيسيّتان: اليمنى أقصرُ وأعرضُ وأكثرُ عموديّة ── */
+  const HR = V(-.42, 1.66, -.04), HL = V(.45, 1.7, -.04);
+  const bronchi = [vessel([CAR, V(-.2, 1.84, -.04), HR], .066, .056, bronM, 20, 14, .01), vessel([CAR, V(.24, 1.9, -.04), HL], .058, .05, bronM, 20, 14, .01)];
+
+  /* ── الرئتان: قمّةٌ عند الترقوة، قاعدةٌ مقعّرةٌ على الحجاب، سطحٌ داخليٌّ مسطّح، وثلمةٌ قلبيّةٌ في اليسرى ── */
+  const LUNG = { [-1]: { cx: -.62, A: .53, B: .58, apex: 2.45 }, [1]: { cx: .62, A: .49, B: .57, apex: 2.47 } };
+  const prof = w => .25 * (1 - w) + .75 * Math.sqrt(Math.max(0, 1 - Math.pow(w, 1.8)));
+  function lungXZ(s, a, w, k) {
+    const L = LUNG[s], ca = Math.cos(a), sa = Math.sin(a), lat = ca * s, p = prof(w) * k;
+    let x = ca * L.A * p, z = sa * L.B * p; if (lat < 0) x *= .66;
+    if (s > 0 && lat < 0 && sa > 0) x += s * .17 * k * Math.exp(-Math.pow((w - .2) / .17, 2)) * sa * sa * (-lat); // الثلمة القلبية
+    // شقوقُ الفصوص: المائلُ في الرئتين، والأفقيُّ في اليمنى
+    let g = Math.exp(-Math.pow((w - (.45 - .3 * sa)) / .02, 2)); if (s < 0 && sa > -.2 && w > .45 - .3 * sa) g = Math.max(g, Math.exp(-Math.pow((w - .6) / .02, 2)));
+    const n = 1 + fbm3(x * 5 + s, w * 6, z * 5) * .025 - g * .06 * k; return [L.cx + x * n, .02 + z * n];
+  }
+  function lungMesh(s) {
+    const L = LUNG[s], c0 = [], c1 = [], dxz = [];
+    const g = paramGeo(72, 60, (u, v) => {
+      const a = u * Math.PI * 2; let w, k; if (v < .2) { k = Math.max(.001, v / .2); w = 0; } else { k = 1; w = (v - .2) / .8; }
+      const [x, z] = lungXZ(s, a, w, k), [xr, zr] = lungXZ(s, a, 0, 1), Dr = diaTop(xr, zr) - DIA0, Db = diaTop(x, z) - DIA0;
+      if (v < .2) { c0.push(DIA0 + .035); c1.push(Db); } else { const ww = Math.pow(w, .9); c0.push((1 - ww) * (DIA0 + .035) + ww * L.apex); c1.push((1 - ww) * Dr); }
+      dxz.push(x - L.cx, z - .02); return [x, c0[c0.length - 1] + c1[c1.length - 1], z];
+    });
+    const m = new THREE.Mesh(g, lM); m.renderOrder = 3; m.userData.lung = { s, c0, c1, dxz, cx: L.cx }; return m;
+  }
+  function breathe(m, f, ex) { const P = m.geometry.attributes.position, L = m.userData.lung; for (let i = 0; i < P.count; i++) P.setXYZ(i, L.cx + L.dxz[2 * i] * ex, L.c0[i] + L.c1[i] * f, .02 + L.dxz[2 * i + 1] * ex); P.needsUpdate = true; seamNormals(m.geometry); }
+  const lM = tissue('#f08d9e', { transparent: true, opacity: .58, depthWrite: false, bumpScale: 1.3, roughness: .5, sheen: .8 });
+  const lungR = lungMesh(-1), lungL = lungMesh(1);
+  function inLung(p, s, mg = .8) { const L = LUNG[s], w = (p.y - (DIA0 + .45)) / (L.apex - DIA0 - .45); if (w < .03 || w > .93) return false; const pr = prof(w); let dx = (p.x - L.cx) / (L.A * pr); if (dx * s < 0) dx /= .66; const dz = (p.z - .02) / (L.B * pr); return dx * dx + dz * dz < mg; }
+
+  /* ── الشجرةُ القصبيّة: شعبٌ فصّيّةٌ (٣ يمنى، ٢ يسرى) تتفرّعُ إلى شعيباتٍ داخلَ الرئة ── */
+  const lobar = [], fine = [], tips = [];
+  function grow(p, d, len, r, depth, s) {
+    if (depth === 0) { tips.push(p.clone()); return; }
+    const ax = V(srnd() - .5, srnd() - .5, srnd() - .5).cross(d).normalize();
+    for (const sg of [-1, 1]) { let l = len; for (let tr = 0; tr < 6; tr++) {
+      const nd = d.clone().applyAxisAngle(ax, sg * (.42 + srnd() * .25)).normalize(), e = p.clone().addScaledVector(nd, l);
+      if (!inLung(e, s, .78)) { l *= .78; ax.applyAxisAngle(d, .9); continue; }
+      const mid = p.clone().addScaledVector(nd, l * .5).add(V(srnd() - .5, srnd() - .5, srnd() - .5).multiplyScalar(l * .12));
+      fine.push(vesselGeo([p, mid, e], r, r * .75, 6, 6, .02)); grow(e, nd, len * .76, r * .72, depth - 1, s); break; } }
+  }
+  const LOBES = { [-1]: [[-.58, 2.18, .02], [-.82, 1.42, .26], [-.74, .98, -.12]], [1]: [[.58, 2.12, .04], [.72, 1.08, -.06]] };
+  for (const s of [-1, 1]) { const H = s < 0 ? HR : HL;
+    for (const T of LOBES[s]) { const tv = V(...T), e = H.clone().lerp(tv, .45), d = tv.clone().sub(H).normalize();
+      lobar.push(vessel([H, H.clone().lerp(e, .5).add(V(0, 0, .02)), e], .044, .034, bronM, 14, 10, .01)); grow(e, d, .22, .026, 6, s); } }
+  const tipG = []; tips.forEach(p => { const g = new THREE.SphereGeometry(.018, 8, 6); g.translate(p.x, p.y, p.z); tipG.push(g); });
+  const fineM = new THREE.Mesh(mergeGeos(fine), twigM), tipM = new THREE.Mesh(mergeGeos(tipG), tissue('#e2788a', { kind: 'pore', clearcoat: 1 }));
+  fineM.renderOrder = tipM.renderOrder = 1;
+
+  /* ── الحجابُ الحاجز: عضلةٌ قبّيّةٌ تحتَ الرئتين ومركزٌ وتريٌّ فاتح ── */
+  const diaC = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); const gr = x.createRadialGradient(128, 128, 10, 128, 128, 128); gr.addColorStop(0, '#efd9cf'); gr.addColorStop(.28, '#e2b8ae'); gr.addColorStop(.42, '#b8434f'); gr.addColorStop(1, '#93303c'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256);
+    x.strokeStyle = 'rgba(70,10,20,.22)'; x.lineWidth = 2; for (let i = 0; i < 90; i++) { const a = i / 90 * Math.PI * 2; x.beginPath(); x.moveTo(128 + Math.cos(a) * 40, 128 + Math.sin(a) * 40); x.lineTo(128 + Math.cos(a) * 128, 128 + Math.sin(a) * 128); x.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const dia = { c0: [], c1: [] };
+  const diaGeo = paramGeo(64, 24, (u, v) => { const a = u * Math.PI * 2, x = Math.cos(a) * 1.2 * v, z = Math.sin(a) * .74 * v; const edge = Math.pow(v, 6) * .05; dia.c0.push(DIA0 - edge); dia.c1.push(diaTop(x, z) - DIA0); return [x, DIA0 - edge + dia.c1[dia.c1.length - 1], z]; });
+  { const uv = [], nu = 64, nv = 24; for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const a = i / nu * Math.PI * 2, r = j / nv * .5; uv.push(.5 + Math.cos(a) * r, .5 + Math.sin(a) * r); } diaGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }
+  const diaph = new THREE.Mesh(diaGeo, new THREE.MeshPhysicalMaterial({ map: diaC, roughness: .45, clearcoat: .6, sheen: .5, sheenColor: new THREE.Color('#ffd8d8'), side: 2, bumpMap: tissueBump('vein', 5), bumpScale: 1 }));
+
+  /* ── تكبير: شعيبةٌ هوائيّةٌ تنتهي بحويصلاتٍ هوائيّةٍ تحيطُ بها شعيراتٌ دمويّة (كما في الكتاب) ── */
+  const IN = V(-2.4, 2.25, .35), alv = new THREE.Group(); alv.position.copy(IN); root.add(alv);
+  const aM = tissue('#ec8f9c', { kind: 'pore', clearcoat: 1, bumpScale: .5 }), sacs = [], capA = [], capV = [];
+  const bro = vessel([[.62, -.05, 0], [.38, 0, .02], [.18, .02, 0]], .055, .045, twigM, 16, 12, .02); alv.add(bro);
+  const DUCT = [[-.12, .22, .06], [-.2, -.02, .1], [-.08, -.24, .02], [-.02, .05, -.18]];
+  DUCT.forEach(([x, y, z], i) => { const end = V(x, y, z); alv.add(vessel([[.18, .02, 0], [.08, y * .4, z * .4], end], .035, .03, twigM, 10, 10, .02));
+    const sac = []; for (let k = 0; k < 14; k++) { const d = V(srnd() - .5, srnd() - .5, srnd() - .5).normalize(); d.x -= .35; d.normalize(); const p = end.clone().addScaledVector(d, .06 + srnd() * .06); const g = new THREE.SphereGeometry(.04 + srnd() * .015, 18, 14); g.translate(p.x, p.y, p.z); sac.push(g);
+      twigs(k % 2 ? capA : capV, p.clone().addScaledVector(d, .035), V(srnd() - .5, srnd() - .5, srnd() - .5), .06, .007, 2, 1.7, 4); }
+    sacs.push(...sac); });
+  const sacM = new THREE.Mesh(mergeGeos(sacs), aM); alv.add(sacM);
+  const capMs = [new THREE.Mesh(mergeGeos(capA), tissue('#c0141f')), new THREE.Mesh(mergeGeos(capV), tissue('#2a45a8'))]; alv.add(...capMs);
+  alv.scale.setScalar(1.25);
+  // مخروطُ التكبير من طرفِ شعيبةٍ في الرئةِ اليمنى إلى العنقود
+  const zFrom = V(-.98, 1.92, .26), zTo = IN.clone().add(V(.55, 0, 0)), zL = zFrom.distanceTo(zTo);
+  const zc = mesh(new THREE.CylinderGeometry(.42, .03, zL, 32, 1, true), new THREE.MeshBasicMaterial({ color: '#e07a8a', transparent: true, opacity: .16, depthWrite: false, side: 2 }));
+  zc.position.copy(zFrom).add(zTo).multiplyScalar(.5); zc.quaternion.setFromUnitVectors(V(0, 1, 0), zTo.clone().sub(zFrom).normalize()); zc.raycast = () => {}; root.add(zc);
+
+  root.add(nasal, nostrils, oral, lips, tongue, phar, larynx, trachea, ...bronchi, ...lobar, fineM, tipM, lungR, lungL, diaph);
+
+  /* ── تدفّقُ الهواء ── */
+  const o2 = new Flow(root, '#4ab0ff', .035, 70), co2 = new Flow(root, '#8c8c8c', .035, 70);
+  const upper = [[0, 3.42, .95], [0, 3.47, .55], [0, 3.42, .25], [0, 3.2, -.02], [0, 2.9, -.02], [0, 2.72, .06], [0, 2.4, .04], [0, 1.98, -.03]];
+  const ends = [[[-.2, 1.84, -.04], [-.42, 1.66, -.04], [-.55, 1.95, .02], [-.6, 2.2, .02]], [[-.2, 1.84, -.04], [-.42, 1.66, -.04], [-.7, 1.35, .2]], [[-.2, 1.84, -.04], [-.42, 1.66, -.04], [-.68, 1.0, -.1]], [[.24, 1.9, -.04], [.45, 1.7, -.04], [.56, 2.0, .04]], [[.24, 1.9, -.04], [.45, 1.7, -.04], [.66, 1.05, -.05]]];
+  ends.forEach(e => { o2.addPath(curve([...upper, ...e]), .32); co2.addPath(curve([...e.slice().reverse(), ...upper.slice().reverse().slice(0, -1), [0, 3.0, .68], [0, 3.0, .95]]), .32); });
+
   const parts = [
-    { id: 'nose', name: 'الأنف والفم', info: 'في الإنسانِ يدخلُ الهواءُ عبرَ الفمِ والأنفِ إلى البلعوم.', objs: [nose], at: anchor(root, [.15, 3.35, .85]) },
-    { id: 'phar', name: 'البلعوم', info: 'ممرٌّ يمرُّ عبرَه الهواءُ من الأنفِ والفمِ إلى الحنجرة.', objs: [phar], at: anchor(root, [-.2, 3.0, .2]) },
-    { id: 'lar', name: 'الحنجرة', info: 'ينتقلُ الهواءُ من البلعومِ إلى الحنجرة، ثم إلى القصبةِ الهوائية.', objs: [larynx], at: anchor(root, [.25, 2.6, .1]) },
-    { id: 'tra', name: 'القصبة الهوائية', info: 'أنبوبٌ تدعمُه حلقاتٌ غضروفيةٌ ينقلُ الهواءَ إلى الشعبتينِ الهوائيتين.', objs: trachea.children, at: anchor(root, [.25, 2.0, .1]) },
-    { id: 'bron', name: 'الشعبتان والشعيبات الهوائية', info: 'تتفرّعُ الشعبتانِ الهوائيتانِ إلى شعيباتٍ هوائيةٍ أدقَّ فأدقّ، حتى تنتهيَ بأكياسٍ صغيرةٍ تسمّى الحويصلاتِ الهوائية.', objs: bron, at: anchor(root, [-.5, 1.4, .1]) },
-    { id: 'alv', name: 'الحويصلات الهوائية', info: 'عندَ الحويصلاتِ الهوائيةِ يحدثُ تبادلُ الغازاتِ بينَ الدمِ والهواءِ الذي يدخلُ إليها من خلالِ جدرانِها الرقيقة.', objs: alv.children, at: anchor(root, [1.3, -.1, .45]) },
-    { id: 'lung', name: 'الرئتان', info: 'تستخدمُ الزواحفُ والطيورُ والثديياتُ الرئاتِ بصورةٍ رئيسةٍ في التنفّس.', objs: [lungL, lungR], at: anchor(root, [-1.1, 1.4, .3]) },
-    { id: 'dia', name: 'الحجاب الحاجز', info: 'ينقبضُ الحجابُ الحاجزُ وينبسطُ لينظّمَ عمليةَ التنفّس: الشهيقَ والزفير.', objs: [diaph], at: anchor(root, [0, -1.0, .6]) }
+    { id: 'nose', name: 'الأنف', info: 'يدخلُ الهواءُ عبرَ الأنفِ والفمِ إلى البلعوم. (إثراء: تدفّئُ الشعيراتُ والمخاطُ في الأنفِ الهواءَ وترطّبُه وتنقّيه من الغبار.)', objs: [nasal, ...nostrils.children], at: anchor(root, [.02, 3.52, .78]) },
+    { id: 'mouth', name: 'الفم', info: 'يدخلُ الهواءُ أيضًا عبرَ الفمِ إلى البلعوم.', objs: [oral, lips, tongue], at: anchor(root, [.16, 2.98, .72]) },
+    { id: 'phar', name: 'البلعوم', info: 'ممرٌّ خلفَ الأنفِ والفمِ يمرُّ عبرَه الهواءُ إلى الحنجرة. (إثراء: ويمرُّ منه الطعامُ أيضًا إلى المريء.)', objs: [phar], at: anchor(root, [-.12, 3.18, -.08]) },
+    { id: 'lar', name: 'الحنجرة', info: 'ينتقلُ الهواءُ من البلعومِ إلى الحنجرة، ثم إلى القصبةِ الهوائية. (إثراء: فيها الحبالُ الصوتية، ويغلقُها لسانُ المزمارِ عندَ البلع.)', objs: larynx.children, at: anchor(root, [.05, 2.8, .15]) },
+    { id: 'tra', name: 'القصبة الهوائية', info: 'أنبوبٌ تدعمُه حلقاتٌ غضروفيةٌ ينقلُ الهواءَ من الحنجرةِ إلى الشعبتينِ الهوائيتين.', objs: trachea.children, at: anchor(root, [.03, 2.3, .08]) },
+    { id: 'bron', name: 'الشعب الهوائية', info: 'تتفرّعُ القصبةُ الهوائيةُ إلى شعبتينِ هوائيتين، تدخلُ كلٌّ منهما إحدى الرئتين، ثم تتفرّعانِ إلى شعبٍ أصغر. (إثراء: الشعبةُ اليمنى أقصرُ وأعرض، وتتفرّعُ إلى ثلاثِ شعبٍ للفصوصِ الثلاثة، واليسرى إلى شعبتين.)', objs: [...bronchi, ...lobar], at: anchor(root, [-.32, 1.74, 0]) },
+    { id: 'bronchiole', name: 'الشعيبة الهوائية', info: 'تتفرّعُ الشعبُ الهوائيةُ إلى شعيباتٍ هوائيةٍ أدقَّ فأدقّ، حتى تنتهيَ بأكياسٍ صغيرةٍ تسمّى الحويصلاتِ الهوائية.', objs: [fineM, bro], at: anchor(root, [-.78, 1.55, .3]) },
+    { id: 'alv', name: 'الحويصلة الهوائية', info: 'عندَ الحويصلاتِ الهوائيةِ يحدثُ تبادلُ الغازاتِ بينَ الدمِ والهواءِ الذي يدخلُ إليها من خلالِ جدرانِها الرقيقة. (إثراء: تحيطُ بكلِّ حويصلةٍ شعيراتٌ دمويّة.)', objs: [sacM, ...capMs, tipM], at: anchor(root, [-2.3, 2.45, .4]) },
+    { id: 'lung', name: 'الرئة', info: 'للإنسانِ رئتانِ في التجويفِ الصدريّ، يدخلُهما الهواءُ عبرَ الشعبِ الهوائية. (إثراء: اليمنى ثلاثةُ فصوص، واليسرى فصّان وفيها تجويفٌ يستقرُّ فيه القلب.)', objs: [lungR, lungL], at: anchor(root, [.95, 1.6, .2]) },
+    { id: 'dia', name: 'عضلة الحجاب الحاجز', info: 'عضلةٌ تحتَ الرئتين تنقبضُ وتنبسطُ لتنظّمَ عمليةَ التنفّس: عندَ الشهيقِ تنقبضُ وتنخفضُ فيتّسعُ الصدرُ ويدخلُ الهواء، وعندَ الزفيرِ تنبسطُ وترتفعُ فيخرجُ الهواء.', objs: [diaph], at: anchor(root, [.25, .55, .55]) }
   ];
+  const home = { pos: [-2.6, 2.1, 6.9], target: [-.45, 1.85, 0] };
   return {
     root, parts,
-    update(dt) { if (auto) t += dt * rate; const inh = Math.sin(t * 1.4); const k = 1 + inh * .08; lungL.scale.set(1.05 * k, 1.25 * k, .6 * k); lungR.scale.set(1.12 * k, 1.25 * k, .6 * k); diaph.position.y = -1.45 - inh * .15; o2.rate = inh > 0 ? 6 * rate : 0; co2.rate = inh < 0 ? 6 * rate : 0; o2.update(dt); co2.update(dt); },
-    cam: { pos: [0, 1.5, 7.2], target: [0, 1.1, 0] }, inpage: { pos: [0, 1.4, 7.4], target: [0, 1.0, 0] },
+    update(dt) {
+      if (auto) t += dt * rate; const inh = Math.sin(t * 1.4), a = (inh + 1) / 2, f = 1 - .26 * a, ex = 1 + .045 * a;
+      breathe(lungR, f, ex); breathe(lungL, f, ex);
+      { const P = diaph.geometry.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, dia.c0[i] + dia.c1[i] * f); P.needsUpdate = true; seamNormals(diaph.geometry); }
+      const flow = Math.cos(t * 1.4); o2.rate = flow > .1 && auto ? 9 * rate : 0; co2.rate = flow < -.1 && auto ? 9 * rate : 0; o2.update(dt); co2.update(dt);
+    },
+    cam: home, inpage: { pos: [-.35, 1.95, 7.6], target: [-.35, 1.85, 0] },
     controls: [
       { type: 'slider', label: 'سرعة التنفّس', min: .3, max: 3, step: .1, value: 1, fmt: v => v < .8 ? 'هادئ' : v < 1.8 ? 'طبيعي' : 'سريع (رياضة)', on: v => { rate = v; if (v > 1.8) api.toast('في التمارينِ المجهدةِ يتنفّسُ الشخصُ بسرعةٍ لتزويدِ العضلاتِ بالأكسجين.'); } },
-      { type: 'button', label: '🔍 اقترب من الحويصلات', toggle: true, on: on => api.flyTo(on ? [2.4, .3, 2.2] : [0, 1.5, 7.2], on ? [1.2, -.1, .3] : [0, 1.1, 0]) },
+      { type: 'button', label: '🔍 اقترب من الحويصلات', toggle: true, on: on => api.flyTo(on ? [-1.35, 2.35, 2.1] : home.pos, on ? IN.toArray() : home.target) },
+      { type: 'button', label: '🫁 إظهار/إخفاء الرئتين', toggle: true, on: v => { lungR.visible = lungL.visible = !v; } },
       { type: 'button', label: '❚❚ أوقف / شغّل التنفّس', on: () => auto = !auto }
     ],
-    legend: [['#4ab0ff', 'أكسجين (شهيق)'], ['#9a9a9a', 'ثاني أكسيد الكربون (زفير)']],
+    legend: [['#4ab0ff', 'أكسجين (شهيق)'], ['#8c8c8c', 'ثاني أكسيد الكربون (زفير)']],
     quiz: [
       { q: 'المس المكانَ الذي يحدثُ فيه تبادلُ الغازات.', a: 'alv' },
-      { q: 'المس الأنبوبَ الذي تدعمُه حلقاتٌ وينقلُ الهواءَ إلى الرئتين.', a: 'tra' },
-      { q: 'المس العضلةَ التي تنظّمُ الشهيقَ والزفير.', a: 'dia' }
+      { q: 'المس الأنبوبَ الذي تدعمُه حلقاتٌ وينقلُ الهواءَ إلى الشعبتين.', a: 'tra' },
+      { q: 'المس العضلةَ التي تنظّمُ الشهيقَ والزفير.', a: 'dia' },
+      { q: 'إلى أين ينتقلُ الهواءُ بعدَ البلعوم؟ المسه.', a: 'lar' }
     ]
   };
 }
