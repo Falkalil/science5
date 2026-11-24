@@ -65,16 +65,26 @@ export function insectModel(api) {
   const root = new THREE.Group(); let t = 0, walk = false, sel = 0, wx = 0;
   const leaf = mesh(new THREE.SphereGeometry(3, 40, 16), mat('#6fb04a', { roughness: .8, map: noiseTexture('#79b850', '#5c9a3c', 2000) }), [0, -.62, 0]); leaf.scale.set(1.1, .06, 1.5); root.add(leaf);
   const bug = new THREE.Group(); root.add(bug);
-  const shellM = mat('#e8742a', { roughness: .35, map: noiseTexture('#f08236', '#d0581e', 1200) });
-  const shell = mesh(new THREE.SphereGeometry(1, 40, 24), shellM, [0, .25, -.15]); shell.scale.set(.95, .5, 1.3); bug.add(shell);
-  const spots = new THREE.Group(); bug.add(spots); for (const [x, z] of [[.35, .3], [-.35, .3], [.45, -.35], [-.45, -.35], [.2, -.85], [-.2, -.85], [0, .05]]) { const s = mesh(new THREE.SphereGeometry(.12, 12, 8), mat('#1a1a1a'), [x, .25 + .5 * Math.sqrt(Math.max(0, 1 - (x / .95) ** 2 - ((z + .15) / 1.3) ** 2)) - .02, z]); s.scale.y = .35; spots.add(s); }
-  bug.add(mesh(new THREE.BoxGeometry(.03, .04, 2.2), mat('#3a1a0a'), [0, .74, -.2]));
-  const head = mesh(new THREE.SphereGeometry(.42, 24, 16), mat('#2a1a12', { roughness: .4 }), [0, .2, 1.25]); bug.add(head);
-  for (const s of [-1, 1]) bug.add(mesh(new THREE.SphereGeometry(.09, 12, 8), mat('#111', { roughness: .1 }), [s * .25, .33, 1.52]));
-  const antM = mat('#3a2a1a'); const ants = new THREE.Group(); bug.add(ants);
-  for (const s of [-1, 1]) { ants.add(tube([[s * .15, .45, 1.55], [s * .5, .95, 2.1], [s * .95, 1.15, 2.75]], .03, antM, 24, 6)); ants.add(mesh(new THREE.SphereGeometry(.06, 10, 8), antM, [s * .95, 1.15, 2.75])); }
-  const legM = mat('#c8381a', { roughness: .45 }); const legs = [];
-  for (const s of [-1, 1]) for (const [k, z] of [[0, .65], [1, 0], [2, -.65]]) { const lg = new THREE.Group(); lg.position.set(s * .7, .12, z); lg.add(tube([[0, 0, 0], [s * .6, .35, .08], [s * 1.05, -.62, .2 + (k - 1) * .15]], .045, legM, 20, 6)); bug.add(lg); legs.push({ lg, s, k }); }
+  const shellTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d'); const gr = x.createRadialGradient(256, 256, 40, 256, 256, 300); gr.addColorStop(0, '#f2873a'); gr.addColorStop(.7, '#e0602a'); gr.addColorStop(1, '#a8361a'); x.fillStyle = gr; x.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 2600; i++) { const r = .8 + Math.random() * 2.2; x.fillStyle = `rgba(${40 + Math.random() * 40},${15 + Math.random() * 15},10,${.5 + Math.random() * .4})`; x.beginPath(); x.arc(Math.random() * 512, Math.random() * 512, r, 0, 7); x.fill(); }
+    for (let i = 0; i < 40; i++) { x.strokeStyle = 'rgba(120,30,10,.35)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(256, 256); x.lineTo(256 + Math.cos(i / 40 * 6.28) * 300, 256 + Math.sin(i / 40 * 6.28) * 300); x.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const shellM = new THREE.MeshPhysicalMaterial({ color: '#ff8a50', map: shellTex, bumpMap: shellTex, bumpScale: 1.5, roughness: .3, clearcoat: 1, clearcoatRoughness: .2 });
+  const shell = mesh(organGeo(1, v => { v.x *= .92; v.y *= .32; v.z *= 1.15; if (v.y < 0) v.y *= .4; v.y -= Math.abs(v.x) * .08; if (v.z < -.7) { v.x *= 1 + (v.z + .7) * .6; } }, 64, 48), shellM, [0, .28, -.35]); bug.add(shell);
+  const spots = new THREE.Group(); bug.add(spots);
+  const pron = mesh(organGeo(1, v => { v.x *= 1.0; v.y *= .26; v.z *= .45; if (v.z > 0) v.x *= 1 - v.z * .9; }, 48, 32), shellM, [0, .32, .7]); spots.add(pron);
+  const scut = mesh(organGeo(1, v => { v.x *= .42 * (1 - (.5 - v.z * .5) * .8); v.y *= .1; v.z *= .6; }, 32, 24), shellM, [0, .6, .1]); spots.add(scut);
+  const headM = new THREE.MeshPhysicalMaterial({ color: '#5a2a14', roughness: .35, clearcoat: 1, bumpMap: shellTex, bumpScale: 1 });
+  const head = mesh(organGeo(.3, v => { v.x *= 1.05; v.y *= .55; v.z *= 1.1; if (v.z > 0) v.x *= 1 - v.z * 1.6; }), headM, [0, .25, 1.15]); bug.add(head);
+  for (const s of [-1, 1]) bug.add(mesh(new THREE.SphereGeometry(.09, 16, 12), new THREE.MeshPhysicalMaterial({ color: '#2a1408', roughness: .05, clearcoat: 1 }), [s * .25, .3, 1.08]));
+  const antM = new THREE.MeshPhysicalMaterial({ color: '#4a2210', roughness: .4, clearcoat: .6 }); const ants = new THREE.Group(); bug.add(ants);
+  for (const s of [-1, 1]) { let p = V(s * .1, .32, 1.38); const dirs = [V(s * .3, .4, .5), V(s * .4, .2, .5), V(s * .45, .1, .5), V(s * .5, -.05, .45)]; dirs.forEach((d, i) => { const q = p.clone().add(d.multiplyScalar(i ? .55 : .35)); ants.add(vessel([p.toArray(), q.toArray()], .035, .03, antM, 6, 8, 0)); ants.add(mesh(new THREE.SphereGeometry(.042, 10, 8), antM, q.toArray())); p = q; }); }
+  const legM = new THREE.MeshPhysicalMaterial({ color: '#b8401a', roughness: .35, clearcoat: .8 }); const legs = [];
+  for (const s of [-1, 1]) for (const [k, z] of [[0, .6], [1, .15], [2, -.35]]) { const lg = new THREE.Group(); lg.position.set(s * .35, .12, z); const fz = (1 - k) * .35;
+    const knee = [s * .75, .36, fz * .6], foot = [s * 1.0, -.55, fz * 1.4 - (k === 2 ? .25 : 0)];
+    lg.add(mesh(organGeo(.08, v => v), legM, [0, 0, 0]), vessel([[0, 0, 0], [s * .45, .3, fz * .3], knee], .07, .045, legM, 12, 10, 0), mesh(new THREE.SphereGeometry(.05, 10, 8), legM, knee), vessel([knee, [(knee[0] + foot[0]) / 2, -.1, (knee[2] + foot[2]) / 2], foot], .035, .028, legM, 12, 8, 0));
+    for (let i = 1; i <= 3; i++) lg.add(mesh(new THREE.SphereGeometry(.035, 8, 6), antM, [foot[0] + s * i * .06, foot[1] - .01, foot[2] + i * .03]));
+    bug.add(lg); legs.push({ lg, s, k }); }
   const legsG = legs.map(l => l.lg);
   const lb = txt('٦ أرجل', .3, '#a02020'); lb.position.set(1.9, .5, 0); root.add(lb);
   const P = [
