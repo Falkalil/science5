@@ -600,6 +600,17 @@ export function punnettModel(api) {
 }
 
 /* ═════════ ٩) مستويات التنظيم: القلب والرئتان (ص ٢٦–٢٧) ═════════ */
+/** رئةٌ تشريحيّة: قمّةٌ مستديرة، قاعدةٌ مقعّرة، سطحٌ داخليٌّ مسطّح، وثلمةٌ قلبيّةٌ في اليسرى (s>0)، وشقوقُ الفصوص */
+function lungShapeGeo(s, A = .53, B = .58) {
+  const nu = 64, nv = 56, pos = [], idx = [], prof = w => .25 * (1 - w) + .75 * Math.sqrt(Math.max(0, 1 - Math.pow(w, 1.8)));
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const u = (i % nu) / nu, v = j / nv, a = u * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), lat = ca * s; let w, k; if (v < .2) { k = Math.max(.001, v / .2); w = 0; } else { k = 1; w = (v - .2) / .8; }
+    let x = ca * A * prof(w) * k, z = sa * B * prof(w) * k; if (lat < 0) x *= .66; if (s > 0 && lat < 0 && sa > 0) x += s * .17 * k * Math.exp(-Math.pow((w - .2) / .17, 2)) * sa * sa * (-lat);
+    let g = Math.exp(-Math.pow((w - (.45 - .3 * sa)) / .02, 2)); if (s < 0 && sa > -.2 && w > .45 - .3 * sa) g = Math.max(g, Math.exp(-Math.pow((w - .6) / .02, 2))); const n = 1 + fbm3(x * 5 + s, w * 6, z * 5) * .025 - g * .06 * k; x *= n; z *= n;
+    const rim = -.95 - .18 * Math.max(0, lat) - .1 * Math.max(0, -sa); const y = v < .2 ? rim + (.32 - (rim + .95) * .3) * (1 - k * k) : rim + (.98 - rim) * Math.pow(w, .9); pos.push(x, y, z); }
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const N = g.attributes.normal, t1 = new THREE.Vector3(), t2 = new THREE.Vector3(); for (let j = 0; j <= nv; j++) { const a = j * (nu + 1), b = a + nu; t1.fromBufferAttribute(N, a); t2.fromBufferAttribute(N, b); t1.add(t2).normalize(); N.setXYZ(a, t1.x, t1.y, t1.z); N.setXYZ(b, t1.x, t1.y, t1.z); } return g;
+}
 export function organsModel(api) {
   const root = new THREE.Group(); let lvl = 3, t = 0;
   const muscleM = tissue('#c8424e', { kind: 'vein', bumpScale: 1.6, roughness: .42 }); reseed(27);
@@ -621,9 +632,9 @@ export function organsModel(api) {
   const vena = vessel([[-.7, -.6, .1], [-.85, .4, .2], [-.9, 1.4, .2], [-.95, 2.7, .1]], .17, .16, blue, 40, 12);
   heart.add(aorta, pulm, vena); root.add(heart);
   // الرئتان: فصوصٌ ونسيجٌ إسفنجيّ ورديّ
-  const lungs = new THREE.Group(); const lM = tissue('#d9908e', { kind: 'vein', bumpScale: 2.4, roughness: .55, clearcoat: .3, sheen: .8 });
+  const lungs = new THREE.Group(); const lM = tissue('#bf7666', { kind: 'vein', bumpScale: 2.4, roughness: .55, clearcoat: .3, sheen: .8 });
   const lungGeo = s => organGeo(1, v => { const t = v.y + 1; v.x *= (.72 + t * .26) * (v.x * s < 0 ? .5 : 1); v.z *= .85; v.y *= 1.6 - (v.y > 0 ? v.y * .45 : 0); if (v.x * s < 0 && v.y < 0) v.x *= 1 + v.y * .5; const f = Math.abs(v.y + v.x * s * .6 + (s > 0 ? .1 : .3)); v.multiplyScalar((1 + fbm3(v.x * 4 + s, v.y * 4, v.z * 4) * .05) * (f < .04 ? .96 : 1)); if (s > 0) { const f2 = Math.abs(v.y - .35 - v.x * .2); if (f2 < .03 && v.x > 0) v.multiplyScalar(.97); } }, 96, 72);
-  const L1 = mesh(lungGeo(1), lM, [-1.45, .45, -.5]), L2 = mesh(lungGeo(-1), lM, [1.55, .45, -.5]); L1.scale.x = -1;
+  const L1 = mesh(lungShapeGeo(-1), lM, [-1.12, .5, -.5], null, [1.75, 1.5, 1.15]), L2 = mesh(lungShapeGeo(1), lM, [1.08, .5, -.5], null, [1.7, 1.5, 1.15]);
   const trM = tissue('#ecd6c6', { kind: 'pore', bumpScale: .5 }); const trachea = vessel([[0, 3.4, -.4], [0, 2.3, -.4]], .16, .15, trM, 20, 14);
   for (let i = 0; i < 9; i++) trachea.add(mesh(new THREE.TorusGeometry(.165, .025, 8, 28), trM, [0, 2.4 + i * .11, -.4], [Math.PI / 2, 0, 0]));
   const br1 = vessel([[0, 2.3, -.4], [-.8, 1.9, -.4], [-1.5, 1.4, -.4]], .12, .08, trM, 20, 10), br2 = vessel([[0, 2.3, -.4], [.8, 1.9, -.4], [1.6, 1.4, -.4]], .12, .08, trM, 20, 10);
@@ -631,7 +642,7 @@ export function organsModel(api) {
   const vessels = new THREE.Group(); for (const [s, c] of [[1, red], [-1, blue]]) vessels.add(vessel([[s * .4, -1, 0], [s * 1, -2, .2], [s * .8, -3, .3]], .08, .05, c, 20, 8)); root.add(vessels);
   const title = txt('', .45, '#7a1a2a'); title.position.set(0, -3.4, 0); root.add(title);
   const names = ['خلية', 'نسيج', 'عضو', 'جهاز حيوي'];
-  function apply() { cellG.visible = lvl === 0; tis.visible = lvl === 1; heart.visible = lvl >= 2; lungs.visible = lvl === 3; vessels.visible = lvl === 3; setTxt(title, names[lvl]); api.refreshParts && api.refreshParts(); }
+  function apply() { cellG.visible = lvl === 0; tis.visible = lvl === 1; heart.visible = lvl >= 2; lungs.visible = lvl === 3; vessels.visible = false; setTxt(title, names[lvl]); api.refreshParts && api.refreshParts(); }
   apply();
   const parts = [
     { id: 'cell', name: 'خلية عضلية', info: 'تشبهُ الخلايا لَبِناتِ البناء، وفي المخلوقاتِ المتعدّدةِ الخلايا تقومُ كلُّ خليةٍ بوظيفةٍ خاصّة.', objs: [mc], at: anchor(cellG, [0, .4, 0]), hidden: () => lvl !== 0 },
@@ -642,7 +653,7 @@ export function organsModel(api) {
   ];
   return {
     root, parts,
-    update(dt) { t += dt; const b = 1 + Math.max(0, Math.sin(t * 7)) * .06; heart.scale.setScalar(b); const br = 1 + Math.sin(t * 1.5) * .05; L1.scale.set(-br, br, br); L2.scale.setScalar(br); tis.children.forEach((c, i) => c.scale.x = 1 - Math.max(0, Math.sin(t * 3 + i)) * .12); },
+    update(dt) { t += dt; const b = 1 + Math.max(0, Math.sin(t * 7)) * .06; heart.scale.setScalar(b); const br = 1 + Math.sin(t * 1.5) * .04; L1.scale.set(1.75 * br, 1.5 * br, 1.15 * br); L2.scale.set(1.7 * br, 1.5 * br, 1.15 * br); tis.children.forEach((c, i) => c.scale.x = 1 - Math.max(0, Math.sin(t * 3 + i)) * .12); },
     cam: { pos: [0, .8, 9], target: [0, .2, 0] }, inpage: { pos: [0, .5, 9.5], target: [0, .3, 0] },
     controls: [
       { type: 'steps', value: 3, steps: names.map((n, i) => ({ t: (i + 1) + '- ' + n, d: [parts[0].info, parts[1].info, parts[2].info, parts[3].info][i] })), on: i => { lvl = i; apply(); } }

@@ -1,6 +1,6 @@
 // مجسّمات الصف السادس (١): الخلية والوراثة
 import { creature } from './kit.js';
-import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tissue, fbm3, vesselGeo, organGeo, vessel, reseed } from './kit.js';
+import { THREE, mat, glass, mesh, tube, curve, anchor, V, Flow, clamp, lerp, ease, proxy, noiseTexture, tissue, fbm3, vesselGeo, organGeo, vessel, reseed, mergeGeos, srnd } from './kit.js';
 
 /* ── أدوات ── */
 function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
@@ -179,53 +179,173 @@ export function diffusionModel(api) {
   };
 }
 
-/* ═════════ ٣) البناء الضوئي والتنفس الخلوي (ص ٣٨–٣٩) ═════════ */
+/* ═════════ ٣) البناء الضوئي والتنفّس الخلوي (ص ٣٨–٣٩) — مطابقٌ لشكلِ الكتاب: ورقة ← خلية نباتية ← بلاستيدة خضراء ═════════ */
+const _atomG = new THREE.SphereGeometry(1, 18, 14);
+const _atomM = {}; const atomM = el => _atomM[el] || (_atomM[el] = new THREE.MeshPhysicalMaterial({ color: { C: '#2b2b2b', O: '#e3352b', H: '#f6f6f6' }[el], roughness: .3, clearcoat: 1, clearcoatRoughness: .15 }));
+/** جزيئاتٌ صغيرةٌ بنموذجِ الكرات: CO2 خطّيّ، H2O منحنٍ، O2 ثنائيّ، والجلوكوز حلقةٌ سداسيّة */
+function molecule(kind, s = 1) {
+  const g = new THREE.Group(); const add = (el, x, y, z = 0) => { const r = { C: .07, O: .066, H: .042 }[el]; const m = new THREE.Mesh(_atomG, atomM(el)); m.scale.setScalar(r); m.position.set(x, y, z); g.add(m); };
+  if (kind === 'co2') { add('C', 0, 0); add('O', -.12, 0); add('O', .12, 0); }
+  else if (kind === 'h2o') { add('O', 0, .02); add('H', -.068, -.05); add('H', .068, -.05); }
+  else if (kind === 'o2') { add('O', -.055, 0); add('O', .055, 0); }
+  else { for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; add(i === 0 ? 'O' : 'C', Math.cos(a) * .13, Math.sin(a) * .13, (i % 2 ? .03 : -.03)); if (i) add('O', Math.cos(a) * .24, Math.sin(a) * .24, (i % 2 ? .07 : -.07)); } }
+  g.scale.setScalar(s); return g;
+}
+/** جزيئاتٌ تسيرُ على مسارٍ وتدورُ حولَ نفسِها */
+class MolFlow {
+  constructor(parent, kind, c, speed = .3, s = 1) { this.parent = parent; this.kind = kind; this.c = c; this.speed = speed; this.s = s; this.items = []; this.rate = 1; this.acc = Math.random(); }
+  update(dt) { this.acc += dt * this.rate; while (this.acc > 1 && this.items.length < 7) { this.acc -= 1; const m = molecule(this.kind, this.s); m.userData = { t: 0, sp: V(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(3) }; m.raycast = () => {}; this.parent.add(m); this.items.push(m); }
+    for (let i = this.items.length - 1; i >= 0; i--) { const m = this.items[i], u = m.userData; u.t += dt * this.speed; if (u.t >= 1) { this.parent.remove(m); this.items.splice(i, 1); continue; }
+      m.position.copy(this.c.getPointAt(u.t)); m.rotation.x += u.sp.x * dt; m.rotation.y += u.sp.y * dt; m.scale.setScalar(this.s * Math.min(1, u.t / .1, (1 - u.t) / .1)); } }
+  clear() { this.items.forEach(m => this.parent.remove(m)); this.items = []; }
+}
+/** سهمٌ عريضٌ مسطّحٌ كأسهمِ الكتاب */
+function bigArrow(from, to, w, color, op = .92) {
+  const A = V(...from), B = V(...to), d = B.clone().sub(A), L = d.length(), hl = Math.min(L * .38, w * 2.2);
+  const sh = new THREE.Shape(); sh.moveTo(-w / 2, 0); sh.lineTo(w / 2, 0); sh.lineTo(w / 2, L - hl); sh.lineTo(w * 1.05, L - hl); sh.lineTo(0, L); sh.lineTo(-w * 1.05, L - hl); sh.lineTo(-w / 2, L - hl); sh.closePath();
+  const g = new THREE.ExtrudeGeometry(sh, { depth: w * .22, bevelEnabled: true, bevelThickness: w * .06, bevelSize: w * .06, bevelSegments: 3 }); g.translate(0, 0, -w * .11);
+  const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color, emissive: color, emissiveIntensity: .25, roughness: .35, clearcoat: .8, transparent: op < 1, opacity: op, depthWrite: op >= 1 }));
+  m.position.copy(A); m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); m.userData.curve = curve([A.toArray(), B.toArray()]); return m;
+}
+function zoomCone(from, to, r0, r1, color = '#b6f08a', op = .2) {
+  const A = from.clone(), B = to.clone(), m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, A.distanceTo(B), 40, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, depthWrite: false, side: 2 }));
+  m.position.copy(A).add(B).multiplyScalar(.5); m.quaternion.setFromUnitVectors(V(0, 1, 0), B.clone().sub(A).normalize()); m.raycast = () => {}; return m;
+}
+/** ورقةُ نباتٍ بيضيّةٌ مسنّنةُ الحافّة، بعروقٍ ريشيّة */
+let _leafTex = null;
+function leafTex() { if (_leafTex) return _leafTex; const c = document.createElement('canvas'); c.width = 256; c.height = 512; const x = c.getContext('2d');
+  const gr = x.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, '#3f8f28'); gr.addColorStop(.5, '#6cbf3a'); gr.addColorStop(1, '#3f8f28'); x.fillStyle = gr; x.fillRect(0, 0, 256, 512);
+  for (let i = 0; i < 2500; i++) { x.fillStyle = `rgba(${40 + Math.random() * 40},${110 + Math.random() * 60},30,.08)`; x.fillRect(Math.random() * 256, Math.random() * 512, 3, 3); }
+  x.strokeStyle = '#b9e382'; x.lineCap = 'round'; x.lineWidth = 7; x.beginPath(); x.moveTo(128, 512); x.lineTo(128, 0); x.stroke();
+  x.lineWidth = 3.2; for (let k = 1; k < 12; k++) { const y = 512 - k * 40; for (const s of [-1, 1]) { x.beginPath(); x.moveTo(128, y); x.quadraticCurveTo(128 + s * 60, y - 30, 128 + s * 125, y - 70); x.stroke(); } }
+  x.lineWidth = 1; x.strokeStyle = 'rgba(220,245,180,.45)'; for (let i = 0; i < 160; i++) { const px = Math.random() * 256, py = Math.random() * 512; x.beginPath(); x.moveTo(px, py); x.lineTo(px + (Math.random() - .5) * 30, py + (Math.random() - .5) * 30); x.stroke(); }
+  _leafTex = new THREE.CanvasTexture(c); _leafTex.colorSpace = THREE.SRGBColorSpace; return _leafTex; }
+function leafGeo(L = 1.5, W = .78) {
+  const NT = 48, NS = 12, pos = [], uv = [], idx = [];
+  for (let i = 0; i <= NT; i++) { const t = i / NT; let w = W / 2 * Math.pow(Math.sin(Math.PI * Math.pow(t, .75)), .85); w *= 1 + .07 * ((t * 15) % 1) * (t > .05 && t < .95 ? 1 : 0);
+    for (let j = 0; j <= NS; j++) { const s = j / NS * 2 - 1; pos.push(s * w, t * L, -Math.abs(s) * w * .35 + Math.sin(Math.PI * t) * .12 - t * t * .15); uv.push(s * .5 + .5, t); } }
+  for (let i = 0; i < NT; i++) for (let j = 0; j < NS; j++) { const a = i * (NS + 1) + j, b = a + 1, c = a + NS + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+/** بلاستيدةٌ خضراء: غشاءانِ وحشوةٌ (لحمة) وأقراصٌ مكدّسةٌ (بذيرات) تصلُ بينها صفائح */
+function chloroplast(detail = 1) {
+  const g = new THREE.Group();
+  const shape = (k) => organGeo(1, v => { v.x *= 1.45 * k; v.y *= .6 * k; v.z *= .72 * k; v.multiplyScalar(1 + fbm3(v.x * 2, v.y * 2, v.z * 2) * .025); }, 72, 48);
+  const outer = new THREE.Mesh(shape(1), new THREE.MeshPhysicalMaterial({ color: '#4fae3c', transparent: true, opacity: .4, roughness: .2, clearcoat: 1, depthWrite: false, side: 2 }));
+  const inner = new THREE.Mesh(shape(.93), new THREE.MeshPhysicalMaterial({ color: '#9fd46e', transparent: true, opacity: .45, roughness: .4, depthWrite: false, side: 1 }));
+  outer.renderOrder = 4; inner.renderOrder = 3; g.add(inner, outer);
+  const discs = [], lam = [], centers = [];
+  const XS = [-1.02, -.72, -.42, -.12, .18, .48, .78, 1.04];
+  XS.forEach((x, k) => { const yo = (k % 2 ? .1 : -.08), zo = (k % 3 - 1) * .2, lim = .6 * Math.sqrt(Math.max(.05, 1 - Math.pow(x / 1.42, 2))) - .1, n = Math.max(4, Math.min(9, Math.floor(lim * 2 / .046))), r = .15 + .05 * Math.sqrt(Math.max(0, 1 - Math.pow(x / 1.3, 2)));
+    for (let j = 0; j < n; j++) { const d = new THREE.CylinderGeometry(r, r, .034, 30, 1); d.translate(x, yo + (j - (n - 1) / 2) * .046, zo); discs.push(d); }
+    centers.push(V(x, yo, zo)); });
+  for (let k = 0; k < centers.length - 1; k++) for (const dy of [-.07, .07]) lam.push(vesselGeo([centers[k].clone().add(V(0, dy, 0)), centers[k].clone().lerp(centers[k + 1], .5).add(V(0, dy * 1.6, .05)), centers[k + 1].clone().add(V(0, -dy, 0))], .022, .022, 12, 6, 0));
+  const grana = new THREE.Mesh(mergeGeos(discs), tissue('#1f7a24', { kind: 'pore', bumpScale: .4, roughness: .35, clearcoat: .8 }));
+  const lamM = new THREE.Mesh(mergeGeos(lam), tissue('#5fb24a', { kind: 'vein', bumpScale: .2 })); g.add(grana, lamM);
+  g.userData = { outer, inner, grana, lamM }; return g;
+}
+/** ميتوكندريا: غشاءٌ خارجيٌّ أملس وغشاءٌ داخليٌّ ينطوي في أعراف */
+function mitochondrion() {
+  const g = new THREE.Group();
+  const outer = new THREE.Mesh(organGeo(1, v => { v.x *= 1.35; v.y *= .62; v.z *= .62; v.multiplyScalar(1 + fbm3(v.x * 2 + 4, v.y * 2, v.z * 2) * .03); }, 72, 48), new THREE.MeshPhysicalMaterial({ color: '#f08a5a', transparent: true, opacity: .33, roughness: .25, clearcoat: 1, depthWrite: false, side: 2 }));
+  outer.renderOrder = 4; g.add(outer);
+  const matrix = new THREE.Mesh(organGeo(1, v => { v.x *= 1.26; v.y *= .54; v.z *= .54; }, 48, 32), new THREE.MeshPhysicalMaterial({ color: '#f6c49a', transparent: true, opacity: .35, depthWrite: false })); matrix.renderOrder = 3; g.add(matrix);
+  const cr = []; for (let k = 0; k < 9; k++) { const x = -1.02 + k * .255, up = k % 2 === 0, H = .54 * Math.sqrt(Math.max(.1, 1 - Math.pow(x / 1.26, 2))), len = H * 1.35;
+    const sh = organGeo(1, v => { v.x *= .045; v.y *= len / 2; v.z *= H * .85; v.x += Math.sin(v.y * 6) * .02; }, 24, 16); sh.translate(x, up ? H - len / 2 : -H + len / 2, 0); cr.push(sh); }
+  const cristae = new THREE.Mesh(mergeGeos(cr), tissue('#d2603a', { kind: 'vein', bumpScale: .5, clearcoat: .6 })); g.add(cristae);
+  g.userData = { outer, cristae }; return g;
+}
+
 export function photosynModel(api) {
-  const root = new THREE.Group(); let light = 8, mode = 0;
-  const sun = mesh(new THREE.SphereGeometry(.6, 24, 16), mat('#ffd23a', { emissive: '#ffb000', emissiveIntensity: .9 }), [-3.2, 2.6, 0]); root.add(sun);
-  const rays = new THREE.Group(); root.add(rays); for (let i = 0; i < 5; i++) { const r = mesh(new THREE.CylinderGeometry(.04, .04, 2.6, 6), mat('#ffe27a', { emissive: '#ffcf3a', emissiveIntensity: .7, transparent: true, opacity: .8 })); r.position.set(-2 + i * .12, 1.6 - i * .05, -.4 + i * .2); r.rotation.z = .9; rays.add(r); }
-  // البلاستيدة الخضراء
-  const chl = new THREE.Group(); root.add(chl);
-  const outer = mesh(wobble(new THREE.SphereGeometry(1.4, 56, 40), .04, 1.5), tissue('#5cb84a', { kind: 'pore', transparent: true, opacity: .4, depthWrite: false, side: 2, roughness: .3, bumpScale: .8 })); outer.scale.set(1.7, .85, 1); chl.add(outer);
-  const grana = []; const gM = tissue('#1f7a28', { kind: 'pore', bumpScale: 1, roughness: .4 });
-  for (let k = 0; k < 7; k++) { const g = new THREE.Group(); const n = 3 + (k % 3); for (let j = 0; j < n; j++) g.add(mesh(new THREE.CylinderGeometry(.26, .26, .07, 20), gM, [0, j * .09, 0])); g.position.set(-1.6 + k * .55, -.25 + (k % 2) * .2, (k % 3 - 1) * .35); chl.add(g); grana.push(...g.children); }
-  // الميتوكندريا (للتنفس)
-  const mito = new THREE.Group(); const mb = mesh(wobble(new THREE.CapsuleGeometry(.5, 1.3, 16, 32), .05, 2), tissue('#e0703a', { kind: 'pore', bumpScale: 1.2 })); mb.rotation.z = Math.PI / 2; mito.add(mb); for (let k = -3; k <= 3; k++) mito.add(mesh(new THREE.TorusGeometry(.3, .04, 6, 16, Math.PI), mat('#ffd1a6'), [k * .2, 0, .32])); mito.position.set(2.8, -1.7, 0); root.add(mito);
-  const co2 = new Flow(root, '#9a9a9a', .07, 40), h2o = new Flow(root, '#3c8de0', .07, 40), o2 = new Flow(root, '#bfe8ff', .07, 40), glu = new Flow(root, '#f2c11a', .09, 30);
-  const P = { co2: curve([[-3.5, -1.6, .6], [-2.4, -.8, .5], [-1.2, -.2, .3]]), h2o: curve([[-1, -2.6, 0], [-.6, -1.5, .2], [-.2, -.3, .2]]), o2: curve([[.6, .4, .3], [1.6, 1.4, .3], [3, 2.3, .3]]), glu: curve([[1, -.2, .2], [2, -.9, .1], [2.7, -1.5, 0]]) };
-  const R = { o2: curve([[3.6, .2, .3], [3.3, -.8, .3], [2.9, -1.5, 0]]), glu: curve([[1, -.2, .2], [2, -.9, .1], [2.7, -1.5, 0]]), co2: curve([[3, -1.8, .2], [3.6, -2.4, .4], [4.3, -2.6, .5]]), h2o: curve([[2.6, -1.9, -.2], [2.2, -2.6, -.3], [1.6, -3, -.3]]) };
-  const lbl = { co2: txt('ثاني أكسيد الكربون', .32, '#555'), h2o: txt('ماء', .32, '#1d5fa8'), o2: txt('أكسجين', .32, '#2a7ab0'), glu: txt('جلوكوز', .32, '#9a6a00') };
-  for (const k in lbl) root.add(lbl[k]);
+  const root = new THREE.Group(); let light = 8, mode = 0; reseed(38);
+  /* ── الشمس ── */
+  const sun = new THREE.Group(); sun.position.set(-.35, 4.55, -.6); root.add(sun);
+  const sunCore = mesh(new THREE.SphereGeometry(.5, 40, 30), new THREE.MeshBasicMaterial({ color: '#ffe36a' })); sun.add(sunCore);
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), gr = x.createRadialGradient(128, 128, 20, 128, 128, 128); gr.addColorStop(0, 'rgba(255,244,170,1)'); gr.addColorStop(.25, 'rgba(255,214,60,.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256);
+    x.globalCompositeOperation = 'lighter'; x.strokeStyle = 'rgba(255,214,70,.5)'; x.lineWidth = 5; for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; x.beginPath(); x.moveTo(128 + Math.cos(a) * 40, 128 + Math.sin(a) * 40); x.lineTo(128 + Math.cos(a) * 124, 128 + Math.sin(a) * 124); x.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false })); glow.scale.setScalar(2.8); sun.add(glow);
+  const sunArrow = bigArrow([-.3, 3.95, -.4], [-.05, 2.55, 0], .36, '#e8f04a', .85); root.add(sunArrow);
+  /* ── البلاستيدة الخضراء المكبّرة ── */
+  const CH = V(0, 1.75, 0);
+  const chl = chloroplast(); chl.position.copy(CH); chl.rotation.set(.25, -.2, -.38); root.add(chl);
+  const mito = mitochondrion(); mito.position.copy(CH); mito.rotation.set(.25, -.2, -.38); mito.visible = false; root.add(mito);
+  /* ── خلايا نباتية (نسيجٌ من الورقة) ── */
+  const CELLS = V(-.15, -1.1, 0), cells = new THREE.Group(); cells.position.copy(CELLS); root.add(cells);
+  const wallM = new THREE.MeshPhysicalMaterial({ color: '#7cc04e', transparent: true, opacity: .35, roughness: .3, clearcoat: .8, depthWrite: false }), vacM = new THREE.MeshPhysicalMaterial({ color: '#d6f0c8', transparent: true, opacity: .3, roughness: .1, depthWrite: false }), nucM = tissue('#6a8f4a', { kind: 'pore' });
+  const smallChl = organGeo(1, v => { v.x *= .1; v.y *= .05; v.z *= .065; }, 20, 14), chlM = tissue('#3c9a32', { kind: 'pore', bumpScale: 1.5 }), cellChl = [], cellObjs = [], cellMito = [];
+  const smallMito = organGeo(1, v => { v.x *= .075; v.y *= .035; v.z *= .035; }, 16, 10), mitoM = tissue('#e67a4a', { kind: 'vein' });
+  let pickChl = null;
+  [[-.52, .4], [.5, .44], [-.5, -.42], [.52, -.38]].forEach(([x, y], ci) => {
+    const w = .98, h = .8, d = .55; const wall = mesh(roundBox(w, h, d, .1), wallM, [x, y, 0]); wall.renderOrder = 2; cells.add(wall); cellObjs.push(wall);
+    const vac = mesh(organGeo(1, v => { v.x *= w * .3; v.y *= h * .28; v.z *= d * .3; }), vacM, [x + .05, y - .02, 0]); vac.renderOrder = 1; cells.add(vac);
+    cells.add(mesh(organGeo(.09, v => v), nucM, [x - w * .3, y + h * .22, .12]));
+    for (let k = 0; k < 11; k++) { const a = k / 11 * Math.PI * 2 + ci, px = x + Math.cos(a) * w * .4, py = y + Math.sin(a) * h * .37, c = mesh(smallChl, chlM, [px, py, (k % 3 - 1) * .13], [0, 0, a + Math.PI / 2]); cells.add(c); cellChl.push(c); if (ci === 1 && k === 6) pickChl = c; }
+    for (let k = 0; k < 3; k++) { const m = mesh(smallMito, mitoM, [x + (srnd() - .5) * w * .5, y + (srnd() - .5) * h * .45, .18], [0, 0, srnd() * 3]); cells.add(m); cellMito.push(m); }
+  });
+  /* ── ورقُ النبات ── */
+  const leaves = new THREE.Group(); leaves.position.set(.1, -3.55, 0); root.add(leaves);
+  const lfM = new THREE.MeshPhysicalMaterial({ map: leafTex(), roughness: .5, clearcoat: .35, sheen: .15, sheenColor: new THREE.Color('#d8ffb0'), side: 2, bumpMap: leafTex(), bumpScale: 1.5 }), lg = leafGeo();
+  leaves.add(vessel([[-1.6, -.5, -.2], [-.6, -.15, 0], [.4, .1, 0], [1.3, .55, -.1]], .05, .028, tissue('#7a5a3a', { kind: 'vein' }), 30, 10));
+  const leafMs = [[-1.0, -.3, -.1, .4, .25], [-.15, -.02, 0, -.15, -.1], [.6, .2, 0, -.7, .3], [1.15, .45, -.05, .15, -.4], [-.55, -.18, -.05, 2.6, .2]].map(([x, y, z, rz, rx], i) => { const l = mesh(lg, lfM, [x, y, z], [rx - .5, i * .4, rz]); l.scale.setScalar(i === 4 ? .75 : 1 - i * .04); leaves.add(l); return l; });
+  /* ── مخروطاتُ التكبير: ورقة ← خلايا ← بلاستيدة ── */
+  root.add(zoomCone(V(.05, -2.75, .1), CELLS.clone().add(V(0, -.75, 0)), .06, 1.05, '#c8f7a0', .22));
+  const pc = new THREE.Vector3(); cells.updateMatrixWorld(true); pickChl.getWorldPosition(pc);
+  const cone2 = zoomCone(pc, CH.clone().add(V(.25, -.62, 0)), .05, .95, '#d8ffb0', .2); root.add(cone2);
+  const ring = mesh(new THREE.TorusGeometry(.09, .012, 8, 30), new THREE.MeshBasicMaterial({ color: '#2e7d32' }), pc.toArray()); ring.raycast = () => {}; root.add(ring);
+  /* ── الأسهم (برتقاليّة كما في الكتاب) والجزيئات ── */
+  const OR = '#f0702c';
+  const PA = { h2o: [[2.75, 2.55, .2], [1.15, 1.95, .1]], co2: [[2.6, .45, .2], [1.0, 1.32, .1]], o2: [[-.95, 2.2, .1], [-2.65, 3.05, .2]], glu: [[-.9, 1.3, .1], [-1.75, .35, .1]] };
+  const RA = { glu: [[-2.65, .45, .2], [-1.05, 1.32, .1]], o2: [[-2.65, 3.05, .2], [-1.05, 2.1, .1]], co2: [[1.0, 1.32, .1], [2.6, .45, .2]], h2o: [[1.1, 2.05, .1], [2.75, 2.65, .2]], atp: [[.45, 2.4, .1], [1.25, 3.55, .1]] };
+  const arrowsP = {}, arrowsR = {}, flowsP = [], flowsR = [];
+  for (const k in PA) { arrowsP[k] = bigArrow(PA[k][0], PA[k][1], .32, OR, .9); root.add(arrowsP[k]); const c = curve([V(...PA[k][0]).add(V(0, 0, .35)).toArray(), V(...PA[k][1]).add(V(0, 0, .35)).toArray()]); flowsP.push(new MolFlow(root, k, c, .32, k === 'glu' ? .72 : 1)); }
+  for (const k in RA) { arrowsR[k] = bigArrow(RA[k][0], RA[k][1], .32, k === 'atp' ? '#ffd21f' : OR, .9); root.add(arrowsR[k]); if (k !== 'atp') { const c = curve([V(...RA[k][0]).add(V(0, 0, .35)).toArray(), V(...RA[k][1]).add(V(0, 0, .35)).toArray()]); flowsR.push(new MolFlow(root, k, c, .32, k === 'glu' ? .72 : 1)); } }
+  // طاقةٌ متحرّرةٌ (نجومٌ صفراء)
+  const sparks = []; const spG = new THREE.OctahedronGeometry(.07), spM = new THREE.MeshBasicMaterial({ color: '#ffe14a' }); for (let i = 0; i < 12; i++) { const s = new THREE.Mesh(spG, spM); s.userData.t = i / 12; s.raycast = () => {}; root.add(s); sparks.push(s); }
+  const atpC = curve([[.45, 2.4, .4], [.85, 3.0, .5], [1.35, 3.75, .4]]);
   function apply() {
-    co2.clear(); h2o.clear(); o2.clear(); glu.clear(); co2.paths = []; h2o.paths = []; o2.paths = []; glu.paths = [];
-    if (mode === 0) { co2.addPath(P.co2, .45); h2o.addPath(P.h2o, .45); o2.addPath(P.o2, .4); glu.addPath(P.glu, .4); lbl.co2.position.set(-3.4, -1.9, .6); lbl.h2o.position.set(-1.3, -2.8, 0); lbl.o2.position.set(3, 2.6, .3); lbl.glu.position.set(2.1, -.6, .2); }
-    else { o2.addPath(R.o2, .45); glu.addPath(R.glu, .45); co2.addPath(R.co2, .4); h2o.addPath(R.h2o, .4); lbl.o2.position.set(3.6, .5, .3); lbl.glu.position.set(1.8, -.4, .2); lbl.co2.position.set(4.4, -2.9, .5); lbl.h2o.position.set(1.3, -3.2, -.3); }
-    const k = light / 10; sun.material.emissiveIntensity = .2 + k; rays.visible = light > 0; const r = mode === 0 ? k * 4 : 3; co2.rate = h2o.rate = o2.rate = glu.rate = r;
+    const P = mode === 0, k = light / 10;
+    chl.visible = P; mito.visible = !P; sunArrow.visible = P && light > 0; cone2.visible = true;
+    for (const a in arrowsP) arrowsP[a].visible = P; for (const a in arrowsR) arrowsR[a].visible = !P;
+    flowsP.forEach(f => { f.rate = P ? k * 1.3 : 0; if (!P) f.clear(); }); flowsR.forEach(f => { f.rate = P ? 0 : 1.1; if (P) f.clear(); });
+    sparks.forEach(s => s.visible = !P);
+    cellMito.forEach(m => m.visible = !P);
+    glow.material.opacity = .15 + k * .85; sunCore.material.color.set(light > 0 ? '#ffe36a' : '#9a9070'); sunArrow.material.opacity = .25 + k * .6;
+    chl.userData.grana.material.emissive.set('#3cff50'); chl.userData.grana.material.emissiveIntensity = P ? k * .18 : 0;
+    api.refreshParts && api.refreshParts();
   }
   apply();
   const parts = [
-    { id: 'sun', name: 'ضوء الشمس', info: 'يُستخدمُ ضوءُ الشمسِ في البناءِ الضوئيِّ لإنتاجِ الغذاءِ على شكلِ سكرِ الجلوكوز. ثاني أكسيد الكربون + ماء ←(ضوء)← سكر الجلوكوز + الأكسجين.', objs: [sun], at: anchor(sun, [0, .8, 0]) },
-    { id: 'chl', name: 'البلاستيدة الخضراء', info: 'تتمُّ عمليةُ البناءِ الضوئيِّ داخلَ البلاستيداتِ الخضراءِ التي تحتوي صبغةَ الكلوروفيل، وتقومُ بالتقاطِ الطاقةِ الشمسية.', objs: [outer], at: anchor(chl, [0, 1.25, 0]) },
-    { id: 'gran', name: 'الكلوروفيل (الأقراص الخضراء)', info: 'صبغةٌ خضراءُ تمتصُّ طاقةَ الضوء، وهي التي تُكسِبُ النباتاتِ لونَها الأخضر.', objs: grana, at: anchor(chl, [.6, -.5, .6]) },
-    { id: 'mito', name: 'الميتوكندريا', info: 'تستخلصُ الخلايا الطاقةَ من سكرِ الجلوكوزِ بالتنفّسِ الخلويِّ في الميتوكندريا بوجودِ الأكسجين، وينتجُ الماءُ وثاني أكسيدِ الكربون.', objs: [mb], at: anchor(mito, [0, .7, 0]) },
-    { id: 'co2', name: 'ثاني أكسيد الكربون', info: 'مادةٌ متفاعلةٌ في البناءِ الضوئيّ، وناتجةٌ (فضلات) من التنفّسِ الخلويّ.', objs: [proxy(root, [-2.6, -1, .5], [.8, .8, .8])], at: anchor(root, [-2.6, -1.3, .5]) },
-    { id: 'o2', name: 'الأكسجين', info: 'ينتجُ الأكسجينُ في البناءِ الضوئيِّ ويُطرَدُ إلى الهواء، ويستهلكُه التنفّسُ الخلويّ.', objs: [proxy(root, [2, 1.6, .3], [.8, .8, .8])], at: anchor(root, [2, 1.9, .3]) },
-    { id: 'glu', name: 'سكر الجلوكوز', info: 'الغذاءُ الناتجُ عن البناءِ الضوئيّ، تخزّنُ فيه الطاقة، وتحرّرُها الخليةُ بالتنفّسِ الخلويّ.', objs: [proxy(root, [2, -.9, .1], [.7, .7, .7])], at: anchor(root, [2, -1.2, .1]) }
+    { id: 'sun', name: 'الشمس', info: 'تتحكّمُ الطاقةُ الشمسيّةُ في سيرِ عمليةِ البناءِ الضوئيِّ كلِّها؛ فالنباتُ يستخدمُ طاقةَ الشمسِ لإنتاجِ الغذاءِ على شكلِ سكرِ الجلوكوز. (أشعّةُ الشمسِ ليست مادّة)', objs: [sunCore], at: anchor(sun, [0, .75, 0]) },
+    { id: 'energy', name: 'طاقة الشمس', info: 'تلتقطُ البلاستيداتُ الخضراءُ الطاقةَ الشمسيّةَ التي تُستعملُ في عمليةِ البناءِ الضوئيّ.', objs: [sunArrow], at: anchor(root, [.35, 3.3, 0]), hidden: () => mode !== 0 },
+    { id: 'chl', name: 'بلاستيدة خضراء', info: 'تتمُّ عمليةُ البناءِ الضوئيِّ داخلَ البلاستيداتِ الخضراء، وهي تراكيبُ مميّزةٌ تحتوي على صبغةِ الكلوروفيلِ الخضراء، وتقومُ بالتقاطِ الطاقةِ الشمسيّة.', objs: [chl.userData.outer, chl.userData.inner], at: anchor(root, [-1.15, 2.35, .3]), hidden: () => mode !== 0 },
+    { id: 'gran', name: 'الكلوروفيل (إثراء: الأقراص المكدّسة)', info: 'صبغةٌ خضراءُ تمتصُّ طاقةَ الضوء. (إثراء: توجدُ في أغشيةِ أقراصٍ مكدّسةٍ داخلَ البلاستيدة، تصلُ بينها صفائحُ رقيقة.)', objs: [chl.userData.grana, chl.userData.lamM], at: anchor(root, [.55, 1.35, .6]), hidden: () => mode !== 0 },
+    { id: 'mito', name: 'الميتوكندريا', info: 'تستخلصُ الخلايا الطاقةَ من سكرِ الجلوكوزِ بعمليةِ التنفّسِ الخلويّ في الميتوكندريا بوجودِ الأكسجين، وينتجُ عنها الماءُ وثاني أكسيدِ الكربونِ فضلاتٍ. (إثراء: غشاؤها الداخليُّ مطويٌّ في أعرافٍ تزيدُ مساحته.)', objs: [mito.userData.outer, mito.userData.cristae, ...cellMito], at: anchor(root, [-1.0, 2.4, .3]), hidden: () => mode !== 1 },
+    { id: 'cell', name: 'خلية نباتية', info: 'يحدثُ البناءُ الضوئيُّ فقط في الخلايا التي فيها بلاستيداتٌ خضراء، مثلَ خلايا الورقة. لاحظ البلاستيداتِ الخضراءَ داخلَ كلِّ خلية.', objs: [...cellObjs, ...cellChl], at: anchor(root, [-1.25, -.35, .3]) },
+    { id: 'leaf', name: 'ورقة النبات', info: 'تحتوي خلايا أوراقِ النباتِ على بلاستيداتٍ خضراءَ كثيرة؛ لذا تقومُ الأوراقُ بمعظمِ عمليةِ البناءِ الضوئيّ.', objs: leafMs, at: anchor(root, [-1.3, -3.0, .2]) },
+    { id: 'h2o', name: 'ماء', info: 'مادةٌ متفاعلةٌ في البناءِ الضوئيّ، وناتجةٌ (فضلات) من التنفّسِ الخلويّ. (جزيءُ الماء: ذرّةُ أكسجين وذرّتا هيدروجين)', objs: [arrowsP.h2o, arrowsR.h2o], at: anchor(root, [2.2, 2.6, .3]) },
+    { id: 'co2', name: 'ثاني أكسيد الكربون', info: 'مادةٌ متفاعلةٌ في البناءِ الضوئيّ، وناتجةٌ (فضلات) من التنفّسِ الخلويّ، وتستخدمُها النباتاتُ مرّةً أخرى في البناءِ الضوئيّ. (الجزيء: ذرّةُ كربون وذرّتا أكسجين)', objs: [arrowsP.co2, arrowsR.co2], at: anchor(root, [2.2, .35, .3]) },
+    { id: 'o2', name: 'أكسجين', info: 'يُطرَدُ الأكسجينُ بوصفِه ناتجًا من البناءِ الضوئيِّ إلى الغلافِ الجوّيّ، وتستهلكُه الخلايا في التنفّسِ الخلويّ.', objs: [arrowsP.o2, arrowsR.o2], at: anchor(root, [-2.2, 3.25, .3]) },
+    { id: 'glu', name: 'جلوكوز', info: 'سكرُ الجلوكوزِ هو الغذاءُ الناتجُ عن البناءِ الضوئيّ، تُخزَّنُ فيه الطاقة، وتحرّرُها الخليةُ بالتنفّسِ الخلويّ.', objs: [arrowsP.glu, arrowsR.glu], at: anchor(root, [-1.95, .9, .3]) },
+    { id: 'atp', name: 'طاقة', info: 'تحرّرُ عمليةُ التنفّسِ الخلويِّ الطاقةَ المخزّنةَ في الجلوكوز لتستعملَها الخليةُ في نشاطاتِها الحيويّة: جلوكوز + أكسجين ← ثاني أكسيد الكربون + ماء + طاقة.', objs: [arrowsR.atp], at: anchor(root, [1.55, 3.6, .2]), hidden: () => mode !== 1 }
   ];
+  let tt = 0;
   return {
-    root, parts,
-    update(dt) { co2.update(dt); h2o.update(dt); o2.update(dt); glu.update(dt); grana.forEach((g, i) => g.material.emissive?.setScalar(0)); chl.rotation.y = Math.sin(performance.now() / 3000) * .15; },
-    cam: { pos: [0, 1, 9], target: [.3, -.2, 0] }, inpage: { pos: [0, 0, 9.5], target: [0, -.2, 0] },
+    root, parts, get fitPop() { return innerWidth < 700 ? .7 : .95; },
+    update(dt) { tt += dt; flowsP.forEach(f => f.update(dt)); flowsR.forEach(f => f.update(dt)); chl.rotation.y = -.2 + Math.sin(tt * .35) * .12; mito.rotation.y = chl.rotation.y; glow.material.rotation = tt * .05;
+      if (mode === 1) sparks.forEach(s => { s.userData.t = (s.userData.t + dt * .35) % 1; s.position.copy(atpC.getPointAt(s.userData.t)); s.rotation.y += dt * 4; s.scale.setScalar(Math.min(1, (1 - s.userData.t) * 3)); }); },
+    cam: { pos: [0, .55, 12.4], target: [0, .45, 0] }, inpage: { pos: [0, .5, 13.2], target: [0, .45, 0] },
     controls: [
-      { type: 'seg', label: 'العملية', options: ['البناء الضوئي', 'التنفس الخلوي'], value: 0, on: k => { mode = k; apply(); api.toast(k === 0 ? 'البناءُ الضوئيّ: يدخلُ ثاني أكسيدِ الكربونِ والماء، ويخرجُ الجلوكوزُ والأكسجين (يحتاجُ إلى ضوء).' : 'التنفّسُ الخلويّ: يدخلُ الجلوكوزُ والأكسجينُ إلى الميتوكندريا، فتتحرّرُ الطاقةُ ويخرجُ ثاني أكسيدِ الكربونِ والماء (في الضوءِ أو الظلام).'); } },
-      { type: 'slider', label: 'شدّة الضوء', min: 0, max: 10, step: 1, value: 8, fmt: v => v === 0 ? 'ظلام' : v < 5 ? 'خافت' : 'ساطع', on: v => { light = v; apply(); if (v === 0 && mode === 0) api.toast('في الظلامِ يتوقّفُ البناءُ الضوئيّ، لكنّ التنفّسَ الخلويَّ يستمرّ.'); } }
+      { type: 'seg', label: 'العملية', options: ['البناء الضوئي', 'التنفس الخلوي'], value: 0, on: k => { mode = k; apply(); api.toast(k === 0 ? 'البناءُ الضوئيّ: ثاني أكسيد الكربون + ماء ←(ضوء)← سكر الجلوكوز + الأكسجين. يحدثُ في البلاستيداتِ الخضراء.' : 'التنفّسُ الخلويّ: جلوكوز + أكسجين ← ثاني أكسيد الكربون + ماء + طاقة. يحدثُ في الميتوكندريا في معظمِ الخلايا، في الضوءِ أو في الظلام.'); } },
+      { type: 'slider', label: 'شدّة الضوء', min: 0, max: 10, step: 1, value: 8, fmt: v => v === 0 ? 'ظلام' : v < 5 ? 'خافت' : 'ساطع', on: v => { light = v; apply(); if (v === 0 && mode === 0) api.toast('في الظلامِ يتوقّفُ البناءُ الضوئيّ، لكنّ التنفّسَ الخلويَّ يستمرّ.'); } },
+      { type: 'button', label: '🔍 اقترب من البلاستيدة', toggle: true, on: on => api.flyTo(on ? [1.2, 2.3, 4.6] : [0, .55, 12.4], on ? CH.toArray() : [0, .45, 0]) }
     ],
-    legend: [['#9a9a9a', 'ثاني أكسيد الكربون'], ['#3c8de0', 'ماء'], ['#bfe8ff', 'أكسجين'], ['#f2c11a', 'جلوكوز']],
+    legend: [['#2b2b2b', 'كربون'], ['#e3352b', 'أكسجين'], ['#f6f6f6', 'هيدروجين'], ['#f0702c', 'اتجاه المواد']],
     quiz: [
       { q: 'المس التركيبَ الذي يحدثُ فيه البناءُ الضوئيّ.', a: 'chl' },
-      { q: 'المس الصبغةَ التي تمتصُّ طاقةَ الضوء.', a: 'gran' },
       { q: 'المس الغذاءَ الناتجَ عن البناءِ الضوئيّ.', a: 'glu' },
-      { q: 'أين يحدثُ التنفّسُ الخلويّ؟ المسه.', a: 'mito' }
+      { q: 'المس الغازَ الذي يُطرَدُ إلى الهواءِ في البناءِ الضوئيّ.', a: 'o2' },
+      { q: 'المس المادّتينِ المتفاعلتين: ابدأ بثاني أكسيد الكربون.', a: 'co2' }
     ]
   };
 }
@@ -480,6 +600,17 @@ export function punnettModel(api) {
 }
 
 /* ═════════ ٩) مستويات التنظيم: القلب والرئتان (ص ٢٦–٢٧) ═════════ */
+/** رئةٌ تشريحيّة: قمّةٌ مستديرة، قاعدةٌ مقعّرة، سطحٌ داخليٌّ مسطّح، وثلمةٌ قلبيّةٌ في اليسرى (s>0)، وشقوقُ الفصوص */
+function lungShapeGeo(s, A = .53, B = .58) {
+  const nu = 64, nv = 56, pos = [], idx = [], prof = w => .25 * (1 - w) + .75 * Math.sqrt(Math.max(0, 1 - Math.pow(w, 1.8)));
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const u = (i % nu) / nu, v = j / nv, a = u * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), lat = ca * s; let w, k; if (v < .2) { k = Math.max(.001, v / .2); w = 0; } else { k = 1; w = (v - .2) / .8; }
+    let x = ca * A * prof(w) * k, z = sa * B * prof(w) * k; if (lat < 0) x *= .66; if (s > 0 && lat < 0 && sa > 0) x += s * .17 * k * Math.exp(-Math.pow((w - .2) / .17, 2)) * sa * sa * (-lat);
+    let g = Math.exp(-Math.pow((w - (.45 - .3 * sa)) / .02, 2)); if (s < 0 && sa > -.2 && w > .45 - .3 * sa) g = Math.max(g, Math.exp(-Math.pow((w - .6) / .02, 2))); const n = 1 + fbm3(x * 5 + s, w * 6, z * 5) * .025 - g * .06 * k; x *= n; z *= n;
+    const rim = -.95 - .18 * Math.max(0, lat) - .1 * Math.max(0, -sa); const y = v < .2 ? rim + (.32 - (rim + .95) * .3) * (1 - k * k) : rim + (.98 - rim) * Math.pow(w, .9); pos.push(x, y, z); }
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const N = g.attributes.normal, t1 = new THREE.Vector3(), t2 = new THREE.Vector3(); for (let j = 0; j <= nv; j++) { const a = j * (nu + 1), b = a + nu; t1.fromBufferAttribute(N, a); t2.fromBufferAttribute(N, b); t1.add(t2).normalize(); N.setXYZ(a, t1.x, t1.y, t1.z); N.setXYZ(b, t1.x, t1.y, t1.z); } return g;
+}
 export function organsModel(api) {
   const root = new THREE.Group(); let lvl = 3, t = 0;
   const muscleM = tissue('#c8424e', { kind: 'vein', bumpScale: 1.6, roughness: .42 }); reseed(27);
@@ -501,9 +632,9 @@ export function organsModel(api) {
   const vena = vessel([[-.7, -.6, .1], [-.85, .4, .2], [-.9, 1.4, .2], [-.95, 2.7, .1]], .17, .16, blue, 40, 12);
   heart.add(aorta, pulm, vena); root.add(heart);
   // الرئتان: فصوصٌ ونسيجٌ إسفنجيّ ورديّ
-  const lungs = new THREE.Group(); const lM = tissue('#d9908e', { kind: 'vein', bumpScale: 2.4, roughness: .55, clearcoat: .3, sheen: .8 });
+  const lungs = new THREE.Group(); const lM = tissue('#bf7666', { kind: 'vein', bumpScale: 2.4, roughness: .55, clearcoat: .3, sheen: .8 });
   const lungGeo = s => organGeo(1, v => { const t = v.y + 1; v.x *= (.72 + t * .26) * (v.x * s < 0 ? .5 : 1); v.z *= .85; v.y *= 1.6 - (v.y > 0 ? v.y * .45 : 0); if (v.x * s < 0 && v.y < 0) v.x *= 1 + v.y * .5; const f = Math.abs(v.y + v.x * s * .6 + (s > 0 ? .1 : .3)); v.multiplyScalar((1 + fbm3(v.x * 4 + s, v.y * 4, v.z * 4) * .05) * (f < .04 ? .96 : 1)); if (s > 0) { const f2 = Math.abs(v.y - .35 - v.x * .2); if (f2 < .03 && v.x > 0) v.multiplyScalar(.97); } }, 96, 72);
-  const L1 = mesh(lungGeo(1), lM, [-1.45, .45, -.5]), L2 = mesh(lungGeo(-1), lM, [1.55, .45, -.5]); L1.scale.x = -1;
+  const L1 = mesh(lungShapeGeo(-1), lM, [-1.12, .5, -.5], null, [1.75, 1.5, 1.15]), L2 = mesh(lungShapeGeo(1), lM, [1.08, .5, -.5], null, [1.7, 1.5, 1.15]);
   const trM = tissue('#ecd6c6', { kind: 'pore', bumpScale: .5 }); const trachea = vessel([[0, 3.4, -.4], [0, 2.3, -.4]], .16, .15, trM, 20, 14);
   for (let i = 0; i < 9; i++) trachea.add(mesh(new THREE.TorusGeometry(.165, .025, 8, 28), trM, [0, 2.4 + i * .11, -.4], [Math.PI / 2, 0, 0]));
   const br1 = vessel([[0, 2.3, -.4], [-.8, 1.9, -.4], [-1.5, 1.4, -.4]], .12, .08, trM, 20, 10), br2 = vessel([[0, 2.3, -.4], [.8, 1.9, -.4], [1.6, 1.4, -.4]], .12, .08, trM, 20, 10);
@@ -511,7 +642,7 @@ export function organsModel(api) {
   const vessels = new THREE.Group(); for (const [s, c] of [[1, red], [-1, blue]]) vessels.add(vessel([[s * .4, -1, 0], [s * 1, -2, .2], [s * .8, -3, .3]], .08, .05, c, 20, 8)); root.add(vessels);
   const title = txt('', .45, '#7a1a2a'); title.position.set(0, -3.4, 0); root.add(title);
   const names = ['خلية', 'نسيج', 'عضو', 'جهاز حيوي'];
-  function apply() { cellG.visible = lvl === 0; tis.visible = lvl === 1; heart.visible = lvl >= 2; lungs.visible = lvl === 3; vessels.visible = lvl === 3; setTxt(title, names[lvl]); api.refreshParts && api.refreshParts(); }
+  function apply() { cellG.visible = lvl === 0; tis.visible = lvl === 1; heart.visible = lvl >= 2; lungs.visible = lvl === 3; vessels.visible = false; setTxt(title, names[lvl]); api.refreshParts && api.refreshParts(); }
   apply();
   const parts = [
     { id: 'cell', name: 'خلية عضلية', info: 'تشبهُ الخلايا لَبِناتِ البناء، وفي المخلوقاتِ المتعدّدةِ الخلايا تقومُ كلُّ خليةٍ بوظيفةٍ خاصّة.', objs: [mc], at: anchor(cellG, [0, .4, 0]), hidden: () => lvl !== 0 },
@@ -522,7 +653,7 @@ export function organsModel(api) {
   ];
   return {
     root, parts,
-    update(dt) { t += dt; const b = 1 + Math.max(0, Math.sin(t * 7)) * .06; heart.scale.setScalar(b); const br = 1 + Math.sin(t * 1.5) * .05; L1.scale.set(-br, br, br); L2.scale.setScalar(br); tis.children.forEach((c, i) => c.scale.x = 1 - Math.max(0, Math.sin(t * 3 + i)) * .12); },
+    update(dt) { t += dt; const b = 1 + Math.max(0, Math.sin(t * 7)) * .06; heart.scale.setScalar(b); const br = 1 + Math.sin(t * 1.5) * .04; L1.scale.set(1.75 * br, 1.5 * br, 1.15 * br); L2.scale.set(1.7 * br, 1.5 * br, 1.15 * br); tis.children.forEach((c, i) => c.scale.x = 1 - Math.max(0, Math.sin(t * 3 + i)) * .12); },
     cam: { pos: [0, .8, 9], target: [0, .2, 0] }, inpage: { pos: [0, .5, 9.5], target: [0, .3, 0] },
     controls: [
       { type: 'steps', value: 3, steps: names.map((n, i) => ({ t: (i + 1) + '- ' + n, d: [parts[0].info, parts[1].info, parts[2].info, parts[3].info][i] })), on: i => { lvl = i; apply(); } }
