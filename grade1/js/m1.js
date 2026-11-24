@@ -109,18 +109,22 @@ export function teethModel(api) {
   const root = new THREE.Group(); let t = 0, chew = true, sel = 0;
   const boneM = mat('#f2ead6', { roughness: .55 });
   function jaw(x, kind) {
-    const g = new THREE.Group(); g.position.x = x; root.add(g);
+    const g = new THREE.Group(); g.position.x = x; g.rotation.x = .45; root.add(g);
     const upper = new THREE.Group(), lower = new THREE.Group(); g.add(upper); g.add(lower);
-    const gumM = mat('#e8889a', { roughness: .6 });
-    upper.add(mesh(new THREE.BoxGeometry(2, .25, .8), gumM, [0, .3, 0])); lower.add(mesh(new THREE.BoxGeometry(2, .25, .8), gumM, [0, -.3, 0]));
+    const gumM = tissue('#e07a8a', { kind: 'pore', bumpScale: .8 }), bM = tissue('#efe4c8', { kind: 'pore', bumpScale: .6, clearcoat: .2 });
+    const toothM = new THREE.MeshPhysicalMaterial({ color: '#fbf6e8', roughness: .25, clearcoat: 1, clearcoatRoughness: .2, sheen: .3 });
+    const A = u => V(u * .85, 0, .55 * (1 - u * u) - .25), arch = Array.from({ length: 21 }, (_, i) => A(-1 + i / 10));
+    for (const [grp, s] of [[upper, -1], [lower, 1]]) { grp.add(vessel(arch.map(p => [p.x, s * -.3, p.z]), .13, .13, gumM, 60, 12, .02)); grp.add(vessel(arch.map(p => [p.x * 1.08, s * -.5, p.z * 1.05 - .03]), .17, .17, bM, 60, 12, .03)); }
     const T = [];
-    for (let i = 0; i < 6; i++) {
-      const xx = -.8 + i * .32;
-      for (const [grp, s] of [[upper, -1], [lower, 1]]) {
-        let m;
-        if (kind === 'herb') { m = mesh(new THREE.BoxGeometry(.26, .26, .55), boneM.clone()); m.position.set(xx, s * -.06 + (s > 0 ? -.3 : .3) + s * .14, 0); const top = mesh(new THREE.BoxGeometry(.22, .02, .48), mat('#d8cfb4')); top.position.y = s * .13; m.add(top); }
-        else { const big = i === 1 || i === 4; const h = big ? .55 : .3; m = mesh(new THREE.ConeGeometry(big ? .12 : .1, h, 10), boneM.clone()); if (s < 0) m.rotation.x = Math.PI; m.position.set(xx, (s > 0 ? -.3 : .3) + s * (.12 + h / 2), 0); }
-        grp.add(m); T.push(m);
+    const place = (m, u, grp, s) => { const p = A(u), tg = A(Math.min(1, u + .01)).sub(A(Math.max(-1, u - .01))).normalize(); m.position.set(p.x, s * -.2, p.z); m.rotation.y = Math.atan2(-tg.z, tg.x); if (s < 0) m.rotation.z += Math.PI; grp.add(m); T.push(m); };
+    for (const [grp, s] of [[upper, -1], [lower, 1]]) {
+      if (kind === 'herb') {
+        for (let i = 0; i < 6; i++) { const u = (i - 2.5) * .085; const inc = mesh(organGeo(1, v => { v.x *= .045; v.z *= .03; v.y *= .14; v.y += .1; if (v.y > .18) v.x *= 1.3; }), toothM); place(inc, u, grp, s); }
+        for (const side of [-1, 1]) for (let i = 0; i < 6; i++) { const u = side * (.52 + i * .085); const mo = new THREE.Group(); mo.add(mesh(new THREE.BoxGeometry(.13, .2, .16), toothM, [0, .1, 0])); for (let r = 0; r < 3; r++) mo.add(mesh(new THREE.TorusGeometry(.035, .008, 6, 16), mat('#c9bd9a'), [(r - 1) * .035, .2, 0], [Math.PI / 2, 0, 0], [1, 1.6, 1])); place(mo, u, grp, s); }
+      } else {
+        for (let i = 0; i < 6; i++) { const u = (i - 2.5) * .07; place(mesh(new THREE.ConeGeometry(.03, .12, 10), toothM, [0, .06, 0]), u, grp, s); }
+        for (const side of [-1, 1]) { const can = new THREE.Group(); can.add(vessel([[0, 0, 0], [0, .22, .02], [0, .42, -.04]], .065, .008, toothM, 16, 12, 0)); place(can, side * .3, grp, s);
+          for (let i = 0; i < 4; i++) { const u = side * (.5 + i * .13), b = mesh(new THREE.ConeGeometry(.08, .22 - i * .02, 4), toothM, [0, .11, 0], [0, Math.PI / 4, 0], [1.4, 1, .5]); place(b, u, grp, s); } }
       }
     }
     return { g, upper, lower, T };

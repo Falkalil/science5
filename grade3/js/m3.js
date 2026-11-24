@@ -263,32 +263,46 @@ export function camelModel(api) {
   const root = new THREE.Group(); let t = 0, walk = true;
   const sand = mesh(new THREE.CylinderGeometry(4.5, 4.6, .3, 64), mat('#fff', { map: noiseTexture('#e8c88a', '#d0a868', 3000) }), [0, -1.35, 0]); root.add(sand);
   for (const [x, z, s] of [[-2.8, -2, 1.2], [2.6, -2.2, 1], [3, 1.6, .7]]) { const d = mesh(new THREE.SphereGeometry(s, 24, 12, 0, TAU, 0, Math.PI / 2), mat('#e2bc78'), [x, -1.2, z]); d.scale.y = .35; root.add(d); }
-  const M = mat('#d8b47a', { roughness: .8 }), D = mat('#b8925a');
-  const camel = new THREE.Group(); root.add(camel);
-  const body = mesh(new THREE.CapsuleGeometry(.55, 1.4, 10, 20), M, [0, .6, 0], [0, 0, Math.PI / 2]); camel.add(body);
-  const hump = mesh(new THREE.SphereGeometry(.55, 24, 16), M, [-.1, 1.15, 0]); hump.scale.set(1, .9, .8); camel.add(hump);
-  const neck = tube([[.85, .8, 0], [1.25, 1.3, 0], [1.4, 1.9, 0]], .2, M, 20, 12); camel.add(neck);
-  const head = mesh(new THREE.CapsuleGeometry(.2, .45, 8, 12), M, [1.65, 1.95, 0], [0, 0, Math.PI / 2 - .2]); camel.add(head);
-  const lip = mesh(new THREE.SphereGeometry(.12, 12, 8), D, [1.95, 1.86, 0]); lip.scale.set(1, .6, 1.2); camel.add(lip);
-  const split = mesh(new THREE.BoxGeometry(.03, .1, .02), mat('#5a3a1a'), [2.04, 1.84, 0]); camel.add(split);
-  camel.add(mesh(new THREE.SphereGeometry(.03, 8, 6), mat('#111'), [1.78, 2.06, .14]));
+  const M = tissue('#d6b98e', { kind: 'pore', bumpScale: .5, roughness: .85, clearcoat: 0, sheen: .6, sheenColor: new THREE.Color('#f4e4c8') }), D = tissue('#a8845a', { kind: 'pore', bumpScale: 1, roughness: .8, clearcoat: 0 });
+  const blob = (r, f, p, rot) => mesh(organGeo(r, v => { f(v); v.multiplyScalar(1 + fbm3(v.x * 3, v.y * 3, v.z * 3) * .02); }, 56, 40), M, p, rot);
+  const camel = new THREE.Group(); camel.position.y = -1.2; camel.scale.setScalar(1.15); root.add(camel);
+  /* الجسم والصدر */
+  const body = blob(1, v => { v.x *= 1.2; v.y *= .56; v.z *= .52; if (v.y < 0) { v.y *= 1 - Math.max(0, -v.x) * .2; } }, [.1, 2.35, 0]); camel.add(body);
+  const chest = blob(.55, v => { v.y *= 1.05; v.z *= .85; }, [-.85, 2.25, 0]); camel.add(chest);
+  /* السنام: كتلةٌ ناعمةٌ مستديرةٌ فوقَ الظهر */
+  const hump = blob(1, v => { v.x *= .85; v.y *= .6; v.z *= .47; if (v.y < 0) v.y *= .2; v.x -= v.y * .15; }, [.15, 2.6, 0]); camel.add(hump);
+  /* الرقبة الطويلة المنحنية والرأس */
+  const neck = vessel([[-.95, 2.5, 0], [-1.45, 2.3, 0], [-1.85, 2.55, 0], [-2.05, 3.1, 0], [-2.1, 3.45, 0]], .32, .15, M, 40, 18, .02); camel.add(neck);
+  const head = blob(1, v => { v.x *= .42; v.y *= .17; v.z *= .16; if (v.x < 0) { const k = 1 + v.x * .45; v.z *= k; } if (v.x > .1) { v.y *= 1.25; v.z *= 1.2; } }, [-2.3, 3.5, 0], [0, 0, -.18]); camel.add(head);
+  const lip = new THREE.Group(); lip.position.set(-2.68, 3.4, 0); camel.add(lip); for (const s of [-1, 1]) lip.add(mesh(organGeo(.07, v => { v.x *= 1.3; v.y *= .9; }), D, [0, 0, s * .045]));
+  const split = mesh(new THREE.BoxGeometry(.08, .1, .012), mat('#4a2c14'), [-2.71, 3.4, 0]); camel.add(split);
+  for (const s of [-1, 1]) { camel.add(mesh(new THREE.SphereGeometry(.035, 12, 8), new THREE.MeshPhysicalMaterial({ color: '#120a05', roughness: .1, clearcoat: 1 }), [-2.22, 3.6, s * .13])); camel.add(mesh(organGeo(.05, v => { v.y *= 1.6; v.z *= .5; }), M, [-1.98, 3.7, s * .12], [0, 0, .3])); camel.add(mesh(organGeo(.02, v => { v.x *= 1.8; }), mat('#3a2410'), [-2.66, 3.47, s * .05])); }
+  /* الأرجل الطويلة: مفصلُ الركبةِ وثفنتُه، والخفُّ العريضُ بإصبعين */
   const legs = [], pads = [];
-  for (const [x, z] of [[-.7, -.25], [-.7, .25], [.7, -.25], [.7, .25]]) { const lg = new THREE.Group(); lg.position.set(x, .3, z); camel.add(lg); lg.add(mesh(new THREE.CylinderGeometry(.09, .07, 1.35, 10), M, [0, -.67, 0])); const pad = mesh(new THREE.CylinderGeometry(.17, .19, .1, 16), D, [0, -1.37, 0]); pad.scale.z = 1.2; lg.add(pad); legs.push(lg); pads.push(pad); }
-  camel.add(tube([[-1.05, .8, 0], [-1.2, .3, 0]], .04, M, 8, 6));
-  const thorn = new THREE.Group(); thorn.position.set(2.6, -1.2, .9); root.add(thorn); for (let i = 0; i < 6; i++) { const b = tube([[0, 0, 0], [Math.cos(i) * .3, .4, Math.sin(i) * .3], [Math.cos(i) * .5, .8, Math.sin(i) * .5]], .025, mat('#6a8a3a'), 12, 5); thorn.add(b); for (let k = 0; k < 4; k++) thorn.add(mesh(new THREE.ConeGeometry(.015, .12, 4), mat('#c8d8a0'), [Math.cos(i) * .1 * k, .2 * k + .1, Math.sin(i) * .1 * k])); }
-  const sun = node(root, '☀️', [-3, 3, -1.5], 1.2, null);
+  for (const [x, z, front] of [[-.75, -.24, 1], [-.75, .24, 1], [.88, -.24, 0], [.88, .24, 0]]) {
+    const lg = new THREE.Group(); lg.position.set(x, 2.05, z); camel.add(lg);
+    lg.add(vessel([[0, .1, 0], [front ? -.02 : .08, -.45, 0], [front ? 0 : .05, -.9, 0]], front ? .16 : .2, .085, M, 16, 12, .02));
+    lg.add(mesh(organGeo(.09, v => v), D, [front ? 0 : .05, -.92, 0]));
+    lg.add(vessel([[front ? 0 : .05, -.92, 0], [0, -1.45, 0], [-.02, -1.92, 0]], .07, .05, M, 16, 10, .02));
+    const pad = new THREE.Group(); pad.position.set(-.06, -2.0, 0); lg.add(pad);
+    for (const s of [-1, 1]) pad.add(mesh(organGeo(.13, v => { v.x *= 1.25; v.y *= .32; v.z *= .65; }), D, [0, 0, s * .065]));
+    legs.push(lg); pads.push(...pad.children);
+  }
+  const tail = vessel([[1.3, 2.55, 0], [1.42, 2.1, 0], [1.4, 1.6, 0]], .04, .025, M, 12, 8); camel.add(tail); camel.add(mesh(organGeo(.07, v => { v.y *= 2; }), D, [1.4, 1.5, 0]));
+  const thorn = new THREE.Group(); thorn.position.set(-3.2, -1.2, .9); root.add(thorn); const thM = tissue('#6a8a3a', { kind: 'vein' }); for (let i = 0; i < 7; i++) { thorn.add(vessel([[0, 0, 0], [Math.cos(i) * .3, .4, Math.sin(i) * .3], [Math.cos(i) * .5, .8, Math.sin(i) * .5]], .025, .01, thM, 12, 5)); for (let k = 0; k < 4; k++) thorn.add(mesh(new THREE.ConeGeometry(.012, .1, 5), mat('#c9b77a'), [Math.cos(i) * (.2 + k * .08), .25 + k * .14, Math.sin(i) * (.2 + k * .08)], [0, 0, 1])); }
+  const sun = node(root, '☀️', [3, 3.2, -1.5], 1.2, null);
   const parts = [
-    { id: 'hump', name: 'السنام', info: 'يخزّنُ الجملُ الدهونَ في سنامِه لتساعدَه على البقاءِ فترةً طويلةً من دونِ غذاء.', objs: [hump], at: anchor(camel, [-.1, 1.75, 0]) },
-    { id: 'lip', name: 'الشفة المشقوقة', info: 'تساعدُه على أكلِ النباتاتِ الصحراويةِ ذاتِ الأشواكِ الكثيرة.', objs: [lip, split, head], at: anchor(camel, [2, 2.15, 0]) },
-    { id: 'pad', name: 'الخفّ', info: 'يساعدُه على المشيِ فوقَ الرمالِ من دونِ أن يغوصَ فيها أو يشعرَ بحرارتِها.', objs: pads, at: anchor(camel, [.7, -1.05, .45]) },
-    { id: 'body', name: 'تحمّل العطش', info: 'للجملِ قدرةٌ على تحمّلِ العطشِ ونقصِ الماءِ في الصحراءِ الحارّة.', objs: [body], at: anchor(camel, [0, .2, .55]) }
+    { id: 'hump', name: 'السنام', info: 'يخزّنُ الجملُ الدهونَ في سنامِه لتساعدَه على البقاءِ فترةً طويلةً من دونِ غذاء.', objs: [hump], at: anchor(camel, [.15, 3.35, 0]) },
+    { id: 'lip', name: 'الشفة المشقوقة', info: 'تساعدُه على أكلِ النباتاتِ الصحراويةِ ذاتِ الأشواكِ الكثيرة.', objs: [...lip.children, split, head], at: anchor(camel, [-2.75, 3.75, 0]) },
+    { id: 'pad', name: 'الخفّ', info: 'يساعدُه على المشيِ فوقَ الرمالِ من دونِ أن يغوصَ فيها أو يشعرَ بحرارتِها.', objs: pads, at: anchor(camel, [-.85, .3, .45]) },
+    { id: 'body', name: 'تحمّل العطش', info: 'للجملِ قدرةٌ على تحمّلِ العطشِ ونقصِ الماءِ في الصحراءِ الحارّة.', objs: [body, chest, neck], at: anchor(camel, [.4, 1.85, .55]) }
   ];
   return {
     root, parts,
-    update(dt) { t += dt; if (walk) { camel.position.x = Math.sin(t * .4) * .5; legs.forEach((l, i) => l.rotation.z = Math.sin(t * 4 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * .25); } neck.rotation.z = Math.sin(t) * .03; },
-    cam: { pos: [1.4, 1.4, 5.2], target: [.4, .5, 0] }, inpage: { pos: [1, 1.3, 5.4], target: [.4, .5, 0] },
+    update(dt) { t += dt; if (walk) { camel.position.x = Math.sin(t * .4) * .4; legs.forEach((l, i) => l.rotation.z = Math.sin(t * 3.5 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * .22); } neck.rotation.z = Math.sin(t) * .02; },
+    cam: { pos: [-1.0, 1.6, 7.6], target: [-.4, .9, 0] }, inpage: { pos: [-.8, 1.4, 7.8], target: [-.4, .9, 0] },
     controls: [{ type: 'button', label: '🐪 يمشي / يقف', toggle: true, value: true, on: on => { walk = on; } }],
-    quiz: [{ q: 'المس التركيبَ الذي يخزّنُ الدهون.', a: 'hump' }, { q: 'المس التركيبَ الذي يمنعُ غوصَ الجملِ في الرمال.', a: 'pad' }, { q: 'المس التركيبَ الذي يساعدُه على أكلِ النباتاتِ الشوكية.', a: 'lip' }]
+    quiz: [{ q: 'المس التركيبَ الذي يخزّنُ الدهون.', a: 'hump' }, { q: 'المس التركيبَ الذي يمنعُ غوصَ الجملِ في الرمال.', a: 'pad' }, { q: 'المس التركيبَ الذي يساعدُه على أكلِ النباتاتِ الشوكيّة.', a: 'lip' }]
   };
 }
 
